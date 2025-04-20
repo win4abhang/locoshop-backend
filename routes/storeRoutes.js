@@ -46,9 +46,11 @@ router.post('/add', async (req, res) => {
       name,
       address,
       phone,
-      lat,
-      lng,
       tags: tags.split(',').map((tag) => tag.trim().toLowerCase()),
+      location: {
+        type: 'Point',
+        coordinates: [parseFloat(lng), parseFloat(lat)],
+      }
     });
 
     await newStore.save();
