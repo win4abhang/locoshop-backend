@@ -33,4 +33,30 @@ router.get("/search", async (req, res) => {
   }
 });
 
+// === NEW ADD STORE ROUTE ===
+router.post('/add', async (req, res) => {
+  const { name, address, phone, lat, lng, tags } = req.body;
+
+  if (!name || !address || !phone || !lat || !lng || !tags) {
+    return res.status(400).json({ message: 'All fields are required' });
+  }
+
+  try {
+    const newStore = new Store({
+      name,
+      address,
+      phone,
+      lat,
+      lng,
+      tags: tags.split(',').map((tag) => tag.trim().toLowerCase()),
+    });
+
+    await newStore.save();
+    res.status(201).json({ message: 'Store added successfully' });
+  } catch (error) {
+    console.error("Add Store Error:", error);
+    res.status(500).json({ message: 'Failed to add store' });
+  }
+});
+
 module.exports = router;
