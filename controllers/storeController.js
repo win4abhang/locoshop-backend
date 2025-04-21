@@ -1,6 +1,33 @@
-// storeController.js
-
 const Store = require("../models/storeModel");
+
+// ✅ Add Store Function
+const addStore = async (req, res) => {
+  try {
+    const { name, address, phone, lat, lng, tags } = req.body;
+
+    // Validate inputs
+    if (!name || !address || !phone || !lat || !lng || !tags) {
+      return res.status(400).json({ message: "All fields are required." });
+    }
+
+    const store = new Store({
+      name,
+      address,
+      phone,
+      tags,
+      location: {
+        type: 'Point',
+        coordinates: [parseFloat(lng), parseFloat(lat)],
+      },
+    });
+
+    await store.save();
+    res.status(201).json({ message: "Store added successfully!" });
+  } catch (error) {
+    console.error("Add Store Error:", error);
+    res.status(500).json({ message: "Server error while adding store." });
+  }
+};
 
 // ✅ Suggestion Function
 const getStoreSuggestions = async (req, res) => {
@@ -18,7 +45,6 @@ const getStoreSuggestions = async (req, res) => {
       ],
     }).limit(5);
 
-    // Add latitude and longitude from location.coordinates
     const transformed = stores.map((store) => {
       const obj = store.toObject();
       obj.latitude = store.location?.coordinates?.[1];
@@ -55,7 +81,6 @@ const searchStores = async (req, res) => {
       .limit(limit)
       .exec();
 
-    // Add latitude and longitude from location.coordinates
     const transformed = stores.map((store) => {
       const obj = store.toObject();
       obj.latitude = store.location?.coordinates?.[1];
@@ -71,6 +96,7 @@ const searchStores = async (req, res) => {
 };
 
 module.exports = {
+  addStore,
   searchStores,
   getStoreSuggestions,
 };
