@@ -16,15 +16,24 @@ const getStoreSuggestions = async (req, res) => {
         { name: { $regex: query, $options: "i" } },
         { tags: { $regex: query, $options: "i" } },
       ],
-    }).limit(5); // return only 5 suggestions
+    }).limit(5);
 
-    res.json(stores);
+    // Add latitude and longitude from location.coordinates
+    const transformed = stores.map((store) => {
+      const obj = store.toObject();
+      obj.latitude = store.location?.coordinates?.[1];
+      obj.longitude = store.location?.coordinates?.[0];
+      return obj;
+    });
+
+    res.json(transformed);
   } catch (err) {
     console.error("Suggestion Error:", err);
     res.status(500).json({ error: "Server error fetching suggestions." });
   }
 };
 
+// ✅ Search Function
 const searchStores = async (req, res) => {
   try {
     const query = String(req.query.q || "").trim();
@@ -46,7 +55,15 @@ const searchStores = async (req, res) => {
       .limit(limit)
       .exec();
 
-    res.json(stores);
+    // Add latitude and longitude from location.coordinates
+    const transformed = stores.map((store) => {
+      const obj = store.toObject();
+      obj.latitude = store.location?.coordinates?.[1];
+      obj.longitude = store.location?.coordinates?.[0];
+      return obj;
+    });
+
+    res.json(transformed);
   } catch (error) {
     console.error("Search error:", error);
     res.status(500).json({ error: "Server error during store search." });
@@ -55,5 +72,5 @@ const searchStores = async (req, res) => {
 
 module.exports = {
   searchStores,
-  getStoreSuggestions, // ✅ make sure this is exported
+  getStoreSuggestions,
 };
