@@ -1,22 +1,31 @@
-const Store = require('../models/storeModel');
+// locoshop-backend/controllers/storeController.js
 
-// Basic fuzzy search using regex
+const Store = require("../models/storeModel");
+
 const searchStores = async (req, res) => {
   try {
-    const query = req.query.q;
+    const query = String(req.query.q || "").trim();
+
+    if (!query) {
+      return res.status(400).json({ error: "Search query is required." });
+    }
 
     const stores = await Store.find({
       $or: [
-        { name: { $regex: query, $options: 'i' } },
-        { tags: { $regex: query, $options: 'i' } }
-      ]
-    }).limit(3);
+        { name: { $regex: query, $options: "i" } },
+        { tags: { $regex: query, $options: "i" } },
+      ],
+    })
+      .limit(3)
+      .exec();
 
     res.json(stores);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server error' });
+  } catch (error) {
+    console.error("Search error:", error);
+    res.status(500).json({ error: "Server error during store search." });
   }
 };
 
-module.exports = { searchStores };
+module.exports = {
+  searchStores,
+};
