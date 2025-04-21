@@ -5,6 +5,9 @@ const Store = require("../models/storeModel");
 const searchStores = async (req, res) => {
   try {
     const query = String(req.query.q || "").trim();
+    const page = parseInt(req.query.page) || 1;
+    const limit = 3;
+    const skip = (page - 1) * limit;
 
     if (!query) {
       return res.status(400).json({ error: "Search query is required." });
@@ -16,7 +19,8 @@ const searchStores = async (req, res) => {
         { tags: { $regex: query, $options: "i" } },
       ],
     })
-      .limit(3)
+      .skip(skip)
+      .limit(limit)
       .exec();
 
     res.json(stores);
