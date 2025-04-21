@@ -2,34 +2,33 @@
 
 const Store = require("../models/storeModel");
 
-const searchStores = async (req, res) => {
+const getStoreSuggestions = async (req, res) => {
   try {
     const query = String(req.query.q || "").trim();
-    const page = parseInt(req.query.page) || 1;
-    const limit = 3;
-    const skip = (page - 1) * limit;
 
     if (!query) {
       return res.status(400).json({ error: "Search query is required." });
     }
 
+    // Get store names and tags that start with the search query
     const stores = await Store.find({
       $or: [
-        { name: { $regex: query, $options: "i" } },
-        { tags: { $regex: query, $options: "i" } },
+        { name: { $regex: `^${query}`, $options: "i" } },
+        { tags: { $regex: `^${query}`, $options: "i" } },
       ],
     })
-      .skip(skip)
-      .limit(limit)
+      .limit(5)  // Return up to 5 suggestions
+      .select('name tags')  // Only return name and tags for suggestions
       .exec();
 
     res.json(stores);
   } catch (error) {
-    console.error("Search error:", error);
-    res.status(500).json({ error: "Server error during store search." });
+    console.error("Error fetching store suggestions:", error);
+    res.status(500).json({ error: "Server error during store suggestions." });
   }
 };
 
 module.exports = {
-  searchStores,
+  getStoreSuggestions,
+  // other exports
 };
