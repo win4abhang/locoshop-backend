@@ -1,4 +1,40 @@
 const Store = require("../models/storeModel");
+// ✅ Bulk Upload Stores Function
+const bulkAddStores = async (req, res) => {
+  try {
+    const stores = req.body;
+
+    if (!Array.isArray(stores) || stores.length === 0) {
+      return res.status(400).json({ message: "Invalid store data array." });
+    }
+
+    const formattedStores = stores.map((store) => {
+      const tagsArray = Array.isArray(store.tags)
+        ? store.tags
+        : String(store.tags || "").split(",").map((tag) => tag.trim());
+
+      return {
+        name: store.name,
+        address: store.address,
+        phone: store.phone,
+        tags: tagsArray,
+        location: {
+          type: "Point",
+          coordinates: [
+            parseFloat(store.lng),
+            parseFloat(store.lat),
+          ],
+        },
+      };
+    });
+
+    await Store.insertMany(formattedStores);
+    res.status(201).json({ message: "Bulk stores added successfully!" });
+  } catch (error) {
+    console.error("Bulk Upload Error:", error);
+    res.status(500).json({ message: "Bulk insert failed.", error: error.message });
+  }
+};
 
 // ✅ Add Store Function
 const addStore = async (req, res) => {
@@ -178,4 +214,5 @@ module.exports = {
   searchStores,
   getStoreSuggestions,
   autocompleteStores,
+  bulkAddStores, // <-- Add this line
 };
