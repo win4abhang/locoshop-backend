@@ -251,5 +251,5 @@ module.exports = {
   autocompleteStores,
   bulkAddStores,
   getStoreByName,
-  updateStoreByName,
+  updateStoreById,
 };
