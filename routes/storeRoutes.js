@@ -7,7 +7,7 @@ const {
   autocompleteStores,
   bulkAddStores,
   getStoreByName,      // NEW
-  updateStoreByName,   // NEW
+  updateStoreById,   // NEW
 } = require("../controllers/storeController");
 
 // Search & Suggestion Routes
@@ -21,6 +21,6 @@ router.post('/bulk', bulkAddStores);
 
 // NEW: Store by name routes
 router.get('/by-name/:name', getStoreByName);
-router.put('/update-by-name/:name', updateStoreByName);
+router.put('/update-by-name/:name', updateStoreById);
 
 module.exports = router;

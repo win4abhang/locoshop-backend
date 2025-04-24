@@ -214,10 +214,10 @@ const getStoreByName = async (req, res) => {
   }
 };
 
-// ✅ Update Store by Name
-const updateStoreByName = async (req, res) => {
+// ✅ Update Store by ID
+const updateStoreById = async (req, res) => {
   try {
-    const name = decodeURIComponent(req.params.name);
+    const { id } = req.params;
     const update = req.body;
 
     if (update.lat && update.lng) {
@@ -231,11 +231,7 @@ const updateStoreByName = async (req, res) => {
       update.tags = update.tags.split(',').map(tag => tag.trim());
     }
 
-    const store = await Store.findOneAndUpdate(
-      { name },
-      { $set: update },
-      { new: true }
-    );
+    const store = await Store.findByIdAndUpdate(id, { $set: update }, { new: true });
 
     if (!store) {
       return res.status(404).json({ message: 'Store not found' });
