@@ -8,10 +8,19 @@ const bulkAddStores = async (req, res) => {
       return res.status(400).json({ message: "Invalid store data array." });
     }
 
-    const formattedStores = stores.map((store) => {
+    const formattedStores = stores.map((store, index) => {
+      const lat = parseFloat(store.lat);
+      const lng = parseFloat(store.lng);
+
+      if (isNaN(lat) || isNaN(lng)) {
+        throw new Error(`Invalid coordinates at row ${index + 1}`);
+      }
+
       const tagsArray = Array.isArray(store.tags)
         ? store.tags
-        : String(store.tags || "").split(",").map((tag) => tag.trim());
+        : String(store.tags || "")
+            .split(",")
+            .map((tag) => tag.trim());
 
       return {
         name: store.name,
@@ -20,10 +29,7 @@ const bulkAddStores = async (req, res) => {
         tags: tagsArray,
         location: {
           type: "Point",
-          coordinates: [
-            parseFloat(store.lng),
-            parseFloat(store.lat),
-          ],
+          coordinates: [lng, lat],
         },
       };
     });
