@@ -215,23 +215,20 @@ const autocompleteStores = async (req, res) => {
 // ✅ Get Store by Name
 const getStoreByName = async (req, res) => {
   try {
-    const name = decodeURIComponent(req.params.name);
-    const store = await Store.findOne({ name });
+    // Find all stores with the same name
+    const stores = await Store.find({ name: req.params.name });
 
-    if (!store) {
+    if (stores.length === 0) {
       return res.status(404).json({ message: 'Store not found' });
     }
 
-    const storeObj = store.toObject();
-    storeObj.latitude = store.location?.coordinates?.[1];
-    storeObj.longitude = store.location?.coordinates?.[0];
-
-    res.json(storeObj);
-  } catch (error) {
-    console.error("Get Store by Name Error:", error);
-    res.status(500).json({ message: 'Error fetching store.' });
+    res.json({ stores }); // Return all stores with the same name
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
   }
 };
+
 
 // ✅ Update Store by Name
 const updateStoreByName = async (req, res) => {
