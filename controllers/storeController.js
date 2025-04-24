@@ -18,15 +18,13 @@ const bulkAddStores = async (req, res) => {
 
       const tagsArray = Array.isArray(store.tags)
         ? store.tags
-        : String(store.tags || "")
-            .split(",")
-            .map((tag) => tag.trim());
+        : String(store.tags || "general").split(",").map((tag) => tag.trim());
 
       return {
-        name: store.name,
-        address: store.address,
-        phone: store.phone,
-        tags: tagsArray,
+        name: store.name?.trim() || `Dummy Store ${index + 1}`,
+        address: store.address?.trim() || "No address",
+        phone: store.phone?.trim() || "0000000000",
+        tags: tagsArray.length > 0 ? tagsArray : ["general"],
         location: {
           type: "Point",
           coordinates: [lng, lat],
