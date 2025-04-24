@@ -5,16 +5,22 @@ const {
   searchStores,
   getStoreSuggestions,
   autocompleteStores,
-  bulkAddStores, // <-- Add this line
+  bulkAddStores,
+  getStoreByName,      // NEW
+  updateStoreByName,   // NEW
 } = require("../controllers/storeController");
 
-// Existing routes
+// Search & Suggestion Routes
 router.get('/search', searchStores);
 router.get('/suggestions', getStoreSuggestions);
 router.get('/autocomplete', autocompleteStores);
 
-// Store add routes
+// Store Management Routes
 router.post('/add', addStore);
-router.post('/bulk', bulkAddStores); // <-- New bulk upload route
+router.post('/bulk', bulkAddStores);
+
+// NEW: Store by name routes
+router.get('/by-name/:name', getStoreByName);
+router.put('/update-by-name/:name', updateStoreByName);
 
 module.exports = router;

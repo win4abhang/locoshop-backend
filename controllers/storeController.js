@@ -212,11 +212,67 @@ const autocompleteStores = async (req, res) => {
     res.status(500).json({ error: "Server error during autocomplete." });
   }
 };
+// ✅ Get Store by Name
+const getStoreByName = async (req, res) => {
+  try {
+    const name = decodeURIComponent(req.params.name);
+    const store = await Store.findOne({ name });
+
+    if (!store) {
+      return res.status(404).json({ message: 'Store not found' });
+    }
+
+    const storeObj = store.toObject();
+    storeObj.latitude = store.location?.coordinates?.[1];
+    storeObj.longitude = store.location?.coordinates?.[0];
+
+    res.json(storeObj);
+  } catch (error) {
+    console.error("Get Store by Name Error:", error);
+    res.status(500).json({ message: 'Error fetching store.' });
+  }
+};
+
+// ✅ Update Store by Name
+const updateStoreByName = async (req, res) => {
+  try {
+    const name = decodeURIComponent(req.params.name);
+    const update = req.body;
+
+    if (update.lat && update.lng) {
+      update.location = {
+        type: 'Point',
+        coordinates: [parseFloat(update.lng), parseFloat(update.lat)],
+      };
+    }
+
+    if (update.tags && typeof update.tags === 'string') {
+      update.tags = update.tags.split(',').map(tag => tag.trim());
+    }
+
+    const store = await Store.findOneAndUpdate(
+      { name },
+      { $set: update },
+      { new: true }
+    );
+
+    if (!store) {
+      return res.status(404).json({ message: 'Store not found' });
+    }
+
+    res.json({ message: 'Store updated', store });
+  } catch (error) {
+    console.error("Update Store Error:", error);
+    res.status(500).json({ message: 'Error updating store.' });
+  }
+};
 
 module.exports = {
   addStore,
   searchStores,
   getStoreSuggestions,
   autocompleteStores,
-  bulkAddStores, // <-- Add this line
+  bulkAddStores,
+  getStoreByName,     // NEW
+  updateStoreByName,  // NEW
 };
