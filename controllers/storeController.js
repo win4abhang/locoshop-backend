@@ -1,4 +1,5 @@
 const Store = require("../models/storeModel");
+
 // ✅ Bulk Upload Stores Function
 const bulkAddStores = async (req, res) => {
   try {
@@ -45,15 +46,12 @@ const addStore = async (req, res) => {
   try {
     const { name, address, phone, lat, lng, tags } = req.body;
 
-    // Validation
     if (!name || !address || !phone || !lat || !lng || !tags || tags.length === 0) {
       return res.status(400).json({ message: "All fields are required." });
     }
 
-    // Convert tags to array if it is a string
     const tagsArray = Array.isArray(tags) ? tags : tags.split(',').map(tag => tag.trim());
 
-    // Create store object
     const store = new Store({
       name,
       address,
@@ -65,7 +63,6 @@ const addStore = async (req, res) => {
       },
     });
 
-    // Save the store to the database
     await store.save();
     res.status(201).json({ message: "Store added successfully!" });
   } catch (error) {
@@ -79,11 +76,8 @@ const getStoreSuggestions = async (req, res) => {
   try {
     const query = String(req.query.q || "").trim();
 
-    if (!query) {
-      return res.json([]);
-    }
+    if (!query) return res.json([]);
 
-    // Perform fuzzy search on name and tags (case-insensitive)
     const stores = await Store.find({
       $or: [
         { name: { $regex: query, $options: "i" } },
@@ -105,7 +99,7 @@ const getStoreSuggestions = async (req, res) => {
   }
 };
 
-// ✅ Search Function with scoring and fallback (geo and relevance-based search)
+// ✅ Search Function with scoring and fallback
 const searchStores = async (req, res) => {
   try {
     const query = String(req.query.q || "").trim();
@@ -121,7 +115,6 @@ const searchStores = async (req, res) => {
 
     const regex = new RegExp(query, "i");
 
-    // Step 1: Get the 100 nearest stores based on geolocation
     const nearbyStores = await Store.find({
       location: {
         $near: {
@@ -130,12 +123,10 @@ const searchStores = async (req, res) => {
       },
     }).limit(100);
 
-    // Step 2: Filter stores based on the search query (name or tags)
     let filtered = nearbyStores.filter((store) =>
       regex.test(store.name) || store.tags.some((tag) => regex.test(tag))
     );
 
-    // Step 3: If no stores found, perform a global search
     if (filtered.length === 0) {
       const allStores = await Store.find({
         $or: [
@@ -152,12 +143,11 @@ const searchStores = async (req, res) => {
         const [storeLng, storeLat] = store.location.coordinates;
         const dx = storeLat - lat;
         const dy = storeLng - lng;
-        const distanceScore = -(dx * dx + dy * dy); // smaller = closer
+        const distanceScore = -(dx * dx + dy * dy);
 
         return { store, score, distanceScore };
       });
 
-      // Sort stores by score, then distance
       scored.sort((a, b) => {
         if (b.score !== a.score) return b.score - a.score;
         return b.distanceScore - a.distanceScore;
@@ -166,7 +156,6 @@ const searchStores = async (req, res) => {
       filtered = scored.map((s) => s.store);
     }
 
-    // Paginate the filtered results
     const paginated = filtered.slice(skip, skip + limit).map((store) => {
       const obj = store.toObject();
       obj.latitude = store.location?.coordinates?.[1];
@@ -181,16 +170,13 @@ const searchStores = async (req, res) => {
   }
 };
 
-// ✅ Autocomplete Function for name and tags (starts-with search)
+// ✅ Autocomplete Function
 const autocompleteStores = async (req, res) => {
   try {
     const query = String(req.query.q || "").trim();
 
-    if (!query || query.length < 1) {
-      return res.json([]);
-    }
+    if (!query || query.length < 1) return res.json([]);
 
-    // Match beginning of name or tags using ^ for "starts with"
     const regex = new RegExp("^" + query, "i");
 
     const stores = await Store.find({
@@ -200,7 +186,6 @@ const autocompleteStores = async (req, res) => {
       ],
     }).limit(5);
 
-    // Return only name + tags
     const suggestions = stores.map((store) => ({
       name: store.name,
       tags: store.tags,
@@ -212,23 +197,22 @@ const autocompleteStores = async (req, res) => {
     res.status(500).json({ error: "Server error during autocomplete." });
   }
 };
+
 // ✅ Get Store by Name
 const getStoreByName = async (req, res) => {
   try {
-    // Find all stores with the same name
     const stores = await Store.find({ name: req.params.name });
 
     if (stores.length === 0) {
       return res.status(404).json({ message: 'Store not found' });
     }
 
-    res.json({ stores }); // Return all stores with the same name
+    res.json({ stores });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Server error' });
   }
 };
-
 
 // ✅ Update Store by Name
 const updateStoreByName = async (req, res) => {
@@ -270,6 +254,6 @@ module.exports = {
   getStoreSuggestions,
   autocompleteStores,
   bulkAddStores,
-  getStoreByName,     // NEW
-  updateStoreByName,  // NEW
+  getStoreByName,
+  updateStoreByName,
 };
