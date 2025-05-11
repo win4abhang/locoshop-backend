@@ -121,7 +121,7 @@ const searchStores = async (req, res) => {
           $geometry: { type: "Point", coordinates: [lng, lat] },
         },
       },
-    }).limit(100);
+    }).limit(50);
 
     let filtered = nearbyStores.filter((store) =>
       regex.test(store.name) || store.tags.some((tag) => regex.test(tag))
@@ -133,7 +133,7 @@ const searchStores = async (req, res) => {
           { name: { $regex: regex } },
           { tags: { $regex: regex } },
         ],
-      }).limit(100);
+      }).limit(50);
 
       const scored = allStores.map((store) => {
         let score = 0;
