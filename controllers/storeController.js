@@ -231,7 +231,7 @@ const updateStoreById = async (req, res) => {
 };
 
 // Get all stores
-exports.getAllStores = async (req, res) => {
+const getAllStores = async (req, res) => {
   try {
     const stores = await Store.find().limit(20);
     res.status(200).json(stores);
@@ -261,6 +261,6 @@ module.exports = {
   autocompleteStores,
   getStoreByName,
   updateStoreById,
-  getAllStores,
+  getAllStores,  // Ensure this is included in the exports
   deleteStoreById,
 };
