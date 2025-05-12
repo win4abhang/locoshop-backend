@@ -235,6 +235,16 @@ const deleteStoreById = async (req, res) => {
   }
 };
 
+// Delete all stores
+const deleteAllStores = async (req, res) => {
+  try {
+    await Store.deleteMany({});
+    res.status(200).json({ message: 'All stores deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
 module.exports = {
   addStore,
   bulkAddStores,
@@ -245,4 +255,5 @@ module.exports = {
   updateStoreById,
   deleteStoreById,
   getAllStoresForAdmin,
+  deleteAllStores, // 👈 Add this export
 };

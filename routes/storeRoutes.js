@@ -10,6 +10,7 @@ const {
   updateStoreById,
   deleteStoreById,
   getAllStoresForAdmin,
+  deleteAllStores,
 } = require("../controllers/storeController");
 
 // 🧾 Admin panel route
@@ -26,5 +27,5 @@ router.put('/update-by-id/:id', updateStoreById);
 router.post('/add', addStore);
 router.post('/bulk', bulkAddStores);
 router.delete('/:id', deleteStoreById);
-
+router.delete('/', deleteAllStores); // /api/stores
 module.exports = router;
