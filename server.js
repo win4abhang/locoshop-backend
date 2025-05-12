@@ -6,9 +6,15 @@ const cors = require("cors");
 dotenv.config();
 const app = express();
 
+// CORS configuration to allow only specific origin (your frontend)
+const corsOptions = {
+  origin: 'https://locoshop-admin.netlify.app', // Your frontend URL
+  methods: 'GET,POST,DELETE,PUT', // Allow specific HTTP methods
+  allowedHeaders: 'Content-Type,Authorization', // Allow specific headers
+};
+
 // Middleware
-app.use(cors());
-// Only keep this once with the correct limit
+app.use(cors(corsOptions)); // Use CORS middleware with the options
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
