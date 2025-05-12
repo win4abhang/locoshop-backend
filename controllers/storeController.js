@@ -4,31 +4,18 @@ const Store = require("../models/storeModel");
 const addStore = async (req, res) => {
   try {
     const { name, address, phone, lat, lng, tags } = req.body;
-
     if (!name || !address || !phone || !lat || !lng || !tags) {
       return res.status(400).json({ message: "All fields are required." });
     }
 
-    // Validate coordinates
-    if (isNaN(lat) || isNaN(lng)) {
-      return res.status(400).json({ message: "Invalid latitude or longitude" });
-    }
-
-    // Validate and format tags
     const tagsArray = Array.isArray(tags) ? tags : tags.split(',').map(t => t.trim());
-    if (tagsArray.length === 0) {
-      return res.status(400).json({ message: "Tags cannot be empty." });
-    }
 
     const store = new Store({
       name,
       address,
       phone,
       tags: tagsArray,
-      location: {
-        type: 'Point',
-        coordinates: [parseFloat(lng), parseFloat(lat)],
-      },
+      location: { type: 'Point', coordinates: [parseFloat(lng), parseFloat(lat)] },
     });
 
     await store.save();
@@ -39,12 +26,10 @@ const addStore = async (req, res) => {
   }
 };
 
-
-// Bulk insert stores
+// Bulk insert
 const bulkAddStores = async (req, res) => {
   try {
     const stores = req.body;
-
     if (!Array.isArray(stores) || stores.length === 0) {
       return res.status(400).json({ message: "Invalid store data array." });
     }
@@ -52,11 +37,6 @@ const bulkAddStores = async (req, res) => {
     const formattedStores = stores.map((store, index) => {
       const lat = parseFloat(store.lat);
       const lng = parseFloat(store.lng);
-
-      if (isNaN(lat) || isNaN(lng)) {
-        return { error: `Invalid coordinates at row ${index + 1}` };
-      }
-
       const tagsArray = Array.isArray(store.tags)
         ? store.tags
         : String(store.tags || "general").split(",").map(tag => tag.trim());
@@ -68,7 +48,7 @@ const bulkAddStores = async (req, res) => {
         tags: tagsArray,
         location: { type: "Point", coordinates: [lng, lat] },
       };
-    }).filter(store => !store.error);  // Remove stores with errors
+    }).filter(store => !store.error);
 
     if (formattedStores.length === 0) {
       return res.status(400).json({ message: "No valid stores to insert." });
@@ -82,14 +62,30 @@ const bulkAddStores = async (req, res) => {
   }
 };
 
+// ✅ Admin list stores (paginated)
+const getAllStoresForAdmin = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50;
+    const skip = (page - 1) * limit;
 
-// Search by keyword and location
+    const stores = await Store.find().skip(skip).limit(limit);
+    const totalStores = await Store.countDocuments();
+    const totalPages = Math.ceil(totalStores / limit);
+
+    res.json({ stores, page, totalPages, totalStores });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// ✅ User search with location & relevance
 const searchStores = async (req, res) => {
   try {
     const query = String(req.query.q || "").trim();
-    const page = parseInt(req.query.page) || 1; // Default to page 1
-    const limit = 3; // Limit number of results per page
-    const skip = (page - 1) * limit; // Calculate skip value for pagination
+    const page = parseInt(req.query.page) || 1;
+    const limit = 3;
+    const skip = (page - 1) * limit;
     const lat = parseFloat(req.query.lat);
     const lng = parseFloat(req.query.lng);
 
@@ -99,27 +95,25 @@ const searchStores = async (req, res) => {
 
     const regex = new RegExp(query, "i");
 
-    // Find nearby stores
     const nearbyStores = await Store.find({
       location: {
         $near: {
           $geometry: { type: "Point", coordinates: [lng, lat] },
         },
       },
-    }).limit(50); // We fetch more results to filter later
+    }).limit(50);
 
-    let filtered = nearbyStores.filter((store) =>
+    let filtered = nearbyStores.filter(store =>
       regex.test(store.name) || store.tags.some(tag => regex.test(tag))
     );
 
-    // If no stores found, try general search with regex
     if (filtered.length === 0) {
       const allStores = await Store.find({
         $or: [
           { name: { $regex: regex } },
           { tags: { $elemMatch: { $regex: regex } } },
         ],
-      }).limit(50); // Fetching more to filter by score and distance
+      }).limit(50);
 
       const scored = allStores.map(store => {
         let score = 0;
@@ -129,12 +123,11 @@ const searchStores = async (req, res) => {
         const [storeLng, storeLat] = store.location.coordinates;
         const dx = storeLat - lat;
         const dy = storeLng - lng;
-        const distanceScore = -(dx * dx + dy * dy); // We use distance score to prioritize closer stores
+        const distanceScore = -(dx * dx + dy * dy);
 
         return { store, score, distanceScore };
       });
 
-      // Sort stores by score and distance
       scored.sort((a, b) => {
         if (b.score !== a.score) return b.score - a.score;
         return b.distanceScore - a.distanceScore;
@@ -143,7 +136,6 @@ const searchStores = async (req, res) => {
       filtered = scored.map(s => s.store);
     }
 
-    // Pagination logic: Slice the filtered stores to show only the required page results
     const paginated = filtered.slice(skip, skip + limit).map(store => {
       const obj = store.toObject();
       obj.latitude = store.location.coordinates[1];
@@ -151,81 +143,69 @@ const searchStores = async (req, res) => {
       return obj;
     });
 
-    res.json(paginated);
+    res.json({
+      stores: paginated,
+      page,
+      totalPages: Math.ceil(filtered.length / limit),
+      totalStores: filtered.length
+    });
   } catch (error) {
     console.error("Search error:", error);
     res.status(500).json({ error: "Server error during store search." });
   }
 };
 
-
-// Suggestions endpoint
+// Other utilities
 const getStoreSuggestions = async (req, res) => {
   try {
     const query = String(req.query.q || "").trim();
     if (!query) return res.json([]);
-
     const stores = await Store.find({
       $or: [
         { name: { $regex: query, $options: "i" } },
         { tags: { $regex: query, $options: "i" } },
       ],
     }).limit(5);
-
-    const transformed = stores.map(store => {
-      const obj = store.toObject();
-      obj.latitude = store.location.coordinates[1];
-      obj.longitude = store.location.coordinates[0];
-      return obj;
-    });
-
-    res.json(transformed);
+    res.json(stores.map(store => ({
+      ...store.toObject(),
+      latitude: store.location.coordinates[1],
+      longitude: store.location.coordinates[0]
+    })));
   } catch (err) {
-    console.error("Suggestion Error:", err);
     res.status(500).json({ error: "Error fetching suggestions." });
   }
 };
 
-// Autocomplete store names and tags
 const autocompleteStores = async (req, res) => {
   try {
     const query = String(req.query.q || "").trim();
     if (!query) return res.json([]);
-
     const regex = new RegExp("^" + query, "i");
-
     const stores = await Store.find({
       $or: [
         { name: { $regex: regex } },
         { tags: { $regex: regex } },
       ],
     }).limit(5);
-
-    const suggestions = stores.map(store => ({
+    res.json(stores.map(store => ({
       name: store.name,
       tags: store.tags,
-    }));
-
-    res.json(suggestions);
+    })));
   } catch (err) {
-    console.error("Autocomplete Error:", err);
     res.status(500).json({ error: "Error during autocomplete." });
   }
 };
 
-// Get by exact name
 const getStoreByName = async (req, res) => {
   try {
     const stores = await Store.find({ name: req.params.name });
     if (stores.length === 0) return res.status(404).json({ message: 'Store not found' });
     res.json({ stores });
   } catch (err) {
-    console.error(err);
     res.status(500).json({ message: 'Server error' });
   }
 };
 
-// Update store by ID
 const updateStoreById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -243,30 +223,13 @@ const updateStoreById = async (req, res) => {
     }
 
     const store = await Store.findByIdAndUpdate(id, { $set: update }, { new: true });
-
     if (!store) return res.status(404).json({ message: 'Store not found' });
     res.json({ message: 'Store updated', store });
   } catch (error) {
-    console.error("Update Store Error:", error);
     res.status(500).json({ message: 'Error updating store.' });
   }
 };
 
-// Get all stores
-const getAllStores = async (req, res) => {
-  try {
-    const { page = 1, limit = 20 } = req.query; // Get page and limit from query params
-    const stores = await Store.find()
-      .skip((page - 1) * limit)  // Skip results for previous pages
-      .limit(Number(limit));    // Limit the number of results
-    
-    res.status(200).json(stores);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
-
-// Delete store by ID
 const deleteStoreById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -274,7 +237,6 @@ const deleteStoreById = async (req, res) => {
     if (!deleted) return res.status(404).json({ message: 'Store not found' });
     res.status(200).json({ message: 'Store deleted successfully' });
   } catch (error) {
-    console.error("Delete Store Error:", error);
     res.status(500).json({ message: 'Failed to delete store' });
   }
 };
@@ -287,6 +249,6 @@ module.exports = {
   autocompleteStores,
   getStoreByName,
   updateStoreById,
-  getAllStores,  // Ensure this is included in the exports
   deleteStoreById,
+  getAllStoresForAdmin,
 };
