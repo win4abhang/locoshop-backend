@@ -1,5 +1,7 @@
 const express = require('express');
 const router = express.Router();
+const Store = require('../models/Store'); // ✅ Add this line
+
 const {
   addStore,
   searchStores,
@@ -62,5 +64,6 @@ router.put('/update-by-id/:id', updateStoreById);
 router.post('/add', addStore);
 router.post('/bulk', bulkAddStores);
 router.delete('/:id', deleteStoreById);
+router.get('/search', searchStores);
 
 module.exports = router;
