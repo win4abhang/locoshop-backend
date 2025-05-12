@@ -9,7 +9,16 @@ const addStore = async (req, res) => {
       return res.status(400).json({ message: "All fields are required." });
     }
 
+    // Validate coordinates
+    if (isNaN(lat) || isNaN(lng)) {
+      return res.status(400).json({ message: "Invalid latitude or longitude" });
+    }
+
+    // Validate and format tags
     const tagsArray = Array.isArray(tags) ? tags : tags.split(',').map(t => t.trim());
+    if (tagsArray.length === 0) {
+      return res.status(400).json({ message: "Tags cannot be empty." });
+    }
 
     const store = new Store({
       name,
@@ -30,6 +39,7 @@ const addStore = async (req, res) => {
   }
 };
 
+
 // Bulk insert stores
 const bulkAddStores = async (req, res) => {
   try {
@@ -42,7 +52,10 @@ const bulkAddStores = async (req, res) => {
     const formattedStores = stores.map((store, index) => {
       const lat = parseFloat(store.lat);
       const lng = parseFloat(store.lng);
-      if (isNaN(lat) || isNaN(lng)) throw new Error(`Invalid coordinates at row ${index + 1}`);
+
+      if (isNaN(lat) || isNaN(lng)) {
+        return { error: `Invalid coordinates at row ${index + 1}` };
+      }
 
       const tagsArray = Array.isArray(store.tags)
         ? store.tags
@@ -55,7 +68,11 @@ const bulkAddStores = async (req, res) => {
         tags: tagsArray,
         location: { type: "Point", coordinates: [lng, lat] },
       };
-    });
+    }).filter(store => !store.error);  // Remove stores with errors
+
+    if (formattedStores.length === 0) {
+      return res.status(400).json({ message: "No valid stores to insert." });
+    }
 
     await Store.insertMany(formattedStores, { ordered: false });
     res.status(201).json({ message: "Bulk stores added successfully!" });
@@ -65,13 +82,14 @@ const bulkAddStores = async (req, res) => {
   }
 };
 
+
 // Search by keyword and location
 const searchStores = async (req, res) => {
   try {
     const query = String(req.query.q || "").trim();
-    const page = parseInt(req.query.page) || 1;
-    const limit = 3;
-    const skip = (page - 1) * limit;
+    const page = parseInt(req.query.page) || 1; // Default to page 1
+    const limit = 3; // Limit number of results per page
+    const skip = (page - 1) * limit; // Calculate skip value for pagination
     const lat = parseFloat(req.query.lat);
     const lng = parseFloat(req.query.lng);
 
@@ -81,26 +99,27 @@ const searchStores = async (req, res) => {
 
     const regex = new RegExp(query, "i");
 
+    // Find nearby stores
     const nearbyStores = await Store.find({
       location: {
         $near: {
           $geometry: { type: "Point", coordinates: [lng, lat] },
         },
       },
-    }).limit(50);
+    }).limit(50); // We fetch more results to filter later
 
-    // Updated: Use $elemMatch for efficient regex matching on tags
     let filtered = nearbyStores.filter((store) =>
       regex.test(store.name) || store.tags.some(tag => regex.test(tag))
     );
 
+    // If no stores found, try general search with regex
     if (filtered.length === 0) {
       const allStores = await Store.find({
         $or: [
           { name: { $regex: regex } },
-          { tags: { $elemMatch: { $regex: regex } } },  // Updated this line
+          { tags: { $elemMatch: { $regex: regex } } },
         ],
-      }).limit(50);
+      }).limit(50); // Fetching more to filter by score and distance
 
       const scored = allStores.map(store => {
         let score = 0;
@@ -110,11 +129,12 @@ const searchStores = async (req, res) => {
         const [storeLng, storeLat] = store.location.coordinates;
         const dx = storeLat - lat;
         const dy = storeLng - lng;
-        const distanceScore = -(dx * dx + dy * dy);
+        const distanceScore = -(dx * dx + dy * dy); // We use distance score to prioritize closer stores
 
         return { store, score, distanceScore };
       });
 
+      // Sort stores by score and distance
       scored.sort((a, b) => {
         if (b.score !== a.score) return b.score - a.score;
         return b.distanceScore - a.distanceScore;
@@ -123,6 +143,7 @@ const searchStores = async (req, res) => {
       filtered = scored.map(s => s.store);
     }
 
+    // Pagination logic: Slice the filtered stores to show only the required page results
     const paginated = filtered.slice(skip, skip + limit).map(store => {
       const obj = store.toObject();
       obj.latitude = store.location.coordinates[1];
@@ -136,6 +157,7 @@ const searchStores = async (req, res) => {
     res.status(500).json({ error: "Server error during store search." });
   }
 };
+
 
 // Suggestions endpoint
 const getStoreSuggestions = async (req, res) => {
@@ -233,7 +255,11 @@ const updateStoreById = async (req, res) => {
 // Get all stores
 const getAllStores = async (req, res) => {
   try {
-    const stores = await Store.find().limit(20);
+    const { page = 1, limit = 20 } = req.query; // Get page and limit from query params
+    const stores = await Store.find()
+      .skip((page - 1) * limit)  // Skip results for previous pages
+      .limit(Number(limit));    // Limit the number of results
+    
     res.status(200).json(stores);
   } catch (err) {
     res.status(500).json({ message: err.message });
