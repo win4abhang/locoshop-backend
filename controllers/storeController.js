@@ -89,6 +89,7 @@ const searchStores = async (req, res) => {
       },
     }).limit(50);
 
+    // Updated: Use $elemMatch for efficient regex matching on tags
     let filtered = nearbyStores.filter((store) =>
       regex.test(store.name) || store.tags.some(tag => regex.test(tag))
     );
@@ -97,7 +98,7 @@ const searchStores = async (req, res) => {
       const allStores = await Store.find({
         $or: [
           { name: { $regex: regex } },
-          { tags: { $regex: regex } },
+          { tags: { $elemMatch: { $regex: regex } } },  // Updated this line
         ],
       }).limit(50);
 
@@ -232,7 +233,7 @@ const updateStoreById = async (req, res) => {
 // Get all stores
 exports.getAllStores = async (req, res) => {
   try {
-    const stores = await Store.find().limit(20); // ✅ Add a limit
+    const stores = await Store.find().limit(20);
     res.status(200).json(stores);
   } catch (err) {
     res.status(500).json({ message: err.message });
