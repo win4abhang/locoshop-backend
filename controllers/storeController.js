@@ -19,7 +19,7 @@ const bulkAddStores = async (req, res) => {
 
       const tagsArray = Array.isArray(store.tags)
         ? store.tags
-        : String(store.tags || "general").split(",").map((tag) => tag.trim());
+        : String(store.tags || "general").split(",").map(tag => tag.trim());
 
       return {
         name: store.name?.trim() || `Dummy Store ${index + 1}`,
@@ -41,7 +41,7 @@ const bulkAddStores = async (req, res) => {
   }
 };
 
-// ✅ Add Store Function
+// ✅ Add Single Store
 const addStore = async (req, res) => {
   try {
     const { name, address, phone, lat, lng, tags } = req.body;
@@ -71,11 +71,10 @@ const addStore = async (req, res) => {
   }
 };
 
-// ✅ Suggestion Function (Fuzzy Search for name and tags)
+// ✅ Suggestion Function
 const getStoreSuggestions = async (req, res) => {
   try {
     const query = String(req.query.q || "").trim();
-
     if (!query) return res.json([]);
 
     const stores = await Store.find({
@@ -99,7 +98,7 @@ const getStoreSuggestions = async (req, res) => {
   }
 };
 
-// ✅ Search Function with scoring and fallback
+// ✅ Search Function
 const searchStores = async (req, res) => {
   try {
     const query = String(req.query.q || "").trim();
@@ -174,7 +173,6 @@ const searchStores = async (req, res) => {
 const autocompleteStores = async (req, res) => {
   try {
     const query = String(req.query.q || "").trim();
-
     if (!query || query.length < 1) return res.json([]);
 
     const regex = new RegExp("^" + query, "i");
@@ -198,15 +196,13 @@ const autocompleteStores = async (req, res) => {
   }
 };
 
-// ✅ Get Store by Name
+// ✅ Get Store by Exact Name
 const getStoreByName = async (req, res) => {
   try {
     const stores = await Store.find({ name: req.params.name });
-
     if (stores.length === 0) {
       return res.status(404).json({ message: 'Store not found' });
     }
-
     res.json({ stores });
   } catch (err) {
     console.error(err);
@@ -244,12 +240,42 @@ const updateStoreById = async (req, res) => {
   }
 };
 
+// ✅ Get All Stores (for ManageStores)
+const getAllStores = async (req, res) => {
+  try {
+    const stores = await Store.find();
+    res.status(200).json(stores);
+  } catch (error) {
+    console.error("Get All Stores Error:", error);
+    res.status(500).json({ message: 'Failed to fetch stores' });
+  }
+};
+
+// ✅ Delete Store by ID
+const deleteStoreById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deleted = await Store.findByIdAndDelete(id);
+
+    if (!deleted) {
+      return res.status(404).json({ message: 'Store not found' });
+    }
+
+    res.status(200).json({ message: 'Store deleted successfully' });
+  } catch (error) {
+    console.error("Delete Store Error:", error);
+    res.status(500).json({ message: 'Failed to delete store' });
+  }
+};
+
 module.exports = {
   addStore,
+  bulkAddStores,
   searchStores,
   getStoreSuggestions,
   autocompleteStores,
-  bulkAddStores,
   getStoreByName,
   updateStoreById,
+  getAllStores,
+  deleteStoreById,
 };

@@ -6,8 +6,10 @@ const {
   getStoreSuggestions,
   autocompleteStores,
   bulkAddStores,
-  getStoreByName,      // Fetch store by name
-  updateStoreById,     // Update store by ID
+  getStoreByName,
+  updateStoreById,
+  getAllStores,        // ✅ New
+  deleteStoreById      // ✅ New
 } = require("../controllers/storeController");
 
 // Search & Suggestion Routes
@@ -16,11 +18,11 @@ router.get('/suggestions', getStoreSuggestions);
 router.get('/autocomplete', autocompleteStores);
 
 // Store Management Routes
+router.get('/', getAllStores);                     // ✅ NEW
+router.get('/by-name/:name', getStoreByName);
+router.put('/update-by-id/:id', updateStoreById);
 router.post('/add', addStore);
 router.post('/bulk', bulkAddStores);
-
-// NEW: Store by name routes
-router.get('/by-name/:name', getStoreByName);  // Route to fetch store by name
-router.put('/update-by-id/:id', updateStoreById);  // Route to update store by ID (using updateStoreById)
+router.delete('/:id', deleteStoreById);            // ✅ NEW
 
 module.exports = router;
