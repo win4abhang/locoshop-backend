@@ -230,13 +230,12 @@ const updateStoreById = async (req, res) => {
 };
 
 // Get all stores
-const getAllStores = async (req, res) => {
+exports.getAllStores = async (req, res) => {
   try {
-    const stores = await Store.find();
+    const stores = await Store.find().limit(20); // ✅ Add a limit
     res.status(200).json(stores);
-  } catch (error) {
-    console.error("Get All Stores Error:", error);
-    res.status(500).json({ message: 'Failed to fetch stores' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 };
 
