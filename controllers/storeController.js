@@ -1,56 +1,15 @@
 const Store = require("../models/storeModel");
 
-// ✅ Bulk Upload Stores Function
-const bulkAddStores = async (req, res) => {
-  try {
-    const stores = req.body;
-
-    if (!Array.isArray(stores) || stores.length === 0) {
-      return res.status(400).json({ message: "Invalid store data array." });
-    }
-
-    const formattedStores = stores.map((store, index) => {
-      const lat = parseFloat(store.lat);
-      const lng = parseFloat(store.lng);
-
-      if (isNaN(lat) || isNaN(lng)) {
-        throw new Error(`Invalid coordinates at row ${index + 1}`);
-      }
-
-      const tagsArray = Array.isArray(store.tags)
-        ? store.tags
-        : String(store.tags || "general").split(",").map(tag => tag.trim());
-
-      return {
-        name: store.name?.trim() || `Dummy Store ${index + 1}`,
-        address: store.address?.trim() || "No address",
-        phone: store.phone?.trim() || "0000000000",
-        tags: tagsArray.length > 0 ? tagsArray : ["general"],
-        location: {
-          type: "Point",
-          coordinates: [lng, lat],
-        },
-      };
-    });
-
-    await Store.insertMany(formattedStores);
-    res.status(201).json({ message: "Bulk stores added successfully!" });
-  } catch (error) {
-    console.error("Bulk Upload Error:", error);
-    res.status(500).json({ message: "Bulk insert failed.", error: error.message });
-  }
-};
-
-// ✅ Add Single Store
+// Add a single store
 const addStore = async (req, res) => {
   try {
     const { name, address, phone, lat, lng, tags } = req.body;
 
-    if (!name || !address || !phone || !lat || !lng || !tags || tags.length === 0) {
+    if (!name || !address || !phone || !lat || !lng || !tags) {
       return res.status(400).json({ message: "All fields are required." });
     }
 
-    const tagsArray = Array.isArray(tags) ? tags : tags.split(',').map(tag => tag.trim());
+    const tagsArray = Array.isArray(tags) ? tags : tags.split(',').map(t => t.trim());
 
     const store = new Store({
       name,
@@ -67,38 +26,46 @@ const addStore = async (req, res) => {
     res.status(201).json({ message: "Store added successfully!" });
   } catch (error) {
     console.error("Add Store Error:", error);
-    res.status(500).json({ message: "Server error while adding store." });
+    res.status(500).json({ message: "Error adding store", error: error.message });
   }
 };
 
-// ✅ Suggestion Function
-const getStoreSuggestions = async (req, res) => {
+// Bulk insert stores
+const bulkAddStores = async (req, res) => {
   try {
-    const query = String(req.query.q || "").trim();
-    if (!query) return res.json([]);
+    const stores = req.body;
 
-    const stores = await Store.find({
-      $or: [
-        { name: { $regex: query, $options: "i" } },
-        { tags: { $regex: query, $options: "i" } },
-      ],
-    }).limit(5);
+    if (!Array.isArray(stores) || stores.length === 0) {
+      return res.status(400).json({ message: "Invalid store data array." });
+    }
 
-    const transformed = stores.map((store) => {
-      const obj = store.toObject();
-      obj.latitude = store.location?.coordinates?.[1];
-      obj.longitude = store.location?.coordinates?.[0];
-      return obj;
+    const formattedStores = stores.map((store, index) => {
+      const lat = parseFloat(store.lat);
+      const lng = parseFloat(store.lng);
+      if (isNaN(lat) || isNaN(lng)) throw new Error(`Invalid coordinates at row ${index + 1}`);
+
+      const tagsArray = Array.isArray(store.tags)
+        ? store.tags
+        : String(store.tags || "general").split(",").map(tag => tag.trim());
+
+      return {
+        name: store.name?.trim() || `Dummy Store ${index + 1}`,
+        address: store.address?.trim() || "No address",
+        phone: store.phone?.trim() || `99999${index}`,
+        tags: tagsArray,
+        location: { type: "Point", coordinates: [lng, lat] },
+      };
     });
 
-    res.json(transformed);
-  } catch (err) {
-    console.error("Suggestion Error:", err);
-    res.status(500).json({ error: "Server error fetching suggestions." });
+    await Store.insertMany(formattedStores, { ordered: false });
+    res.status(201).json({ message: "Bulk stores added successfully!" });
+  } catch (error) {
+    console.error("Bulk Upload Error:", error);
+    res.status(500).json({ message: "Bulk insert failed", error: error.message });
   }
 };
 
-// ✅ Search Function
+// Search by keyword and location
 const searchStores = async (req, res) => {
   try {
     const query = String(req.query.q || "").trim();
@@ -123,7 +90,7 @@ const searchStores = async (req, res) => {
     }).limit(50);
 
     let filtered = nearbyStores.filter((store) =>
-      regex.test(store.name) || store.tags.some((tag) => regex.test(tag))
+      regex.test(store.name) || store.tags.some(tag => regex.test(tag))
     );
 
     if (filtered.length === 0) {
@@ -134,9 +101,9 @@ const searchStores = async (req, res) => {
         ],
       }).limit(50);
 
-      const scored = allStores.map((store) => {
+      const scored = allStores.map(store => {
         let score = 0;
-        if (store.tags.some((tag) => regex.test(tag))) score += 2;
+        if (store.tags.some(tag => regex.test(tag))) score += 2;
         if (regex.test(store.name)) score += 1;
 
         const [storeLng, storeLat] = store.location.coordinates;
@@ -152,13 +119,13 @@ const searchStores = async (req, res) => {
         return b.distanceScore - a.distanceScore;
       });
 
-      filtered = scored.map((s) => s.store);
+      filtered = scored.map(s => s.store);
     }
 
-    const paginated = filtered.slice(skip, skip + limit).map((store) => {
+    const paginated = filtered.slice(skip, skip + limit).map(store => {
       const obj = store.toObject();
-      obj.latitude = store.location?.coordinates?.[1];
-      obj.longitude = store.location?.coordinates?.[0];
+      obj.latitude = store.location.coordinates[1];
+      obj.longitude = store.location.coordinates[0];
       return obj;
     });
 
@@ -169,11 +136,38 @@ const searchStores = async (req, res) => {
   }
 };
 
-// ✅ Autocomplete Function
+// Suggestions endpoint
+const getStoreSuggestions = async (req, res) => {
+  try {
+    const query = String(req.query.q || "").trim();
+    if (!query) return res.json([]);
+
+    const stores = await Store.find({
+      $or: [
+        { name: { $regex: query, $options: "i" } },
+        { tags: { $regex: query, $options: "i" } },
+      ],
+    }).limit(5);
+
+    const transformed = stores.map(store => {
+      const obj = store.toObject();
+      obj.latitude = store.location.coordinates[1];
+      obj.longitude = store.location.coordinates[0];
+      return obj;
+    });
+
+    res.json(transformed);
+  } catch (err) {
+    console.error("Suggestion Error:", err);
+    res.status(500).json({ error: "Error fetching suggestions." });
+  }
+};
+
+// Autocomplete store names and tags
 const autocompleteStores = async (req, res) => {
   try {
     const query = String(req.query.q || "").trim();
-    if (!query || query.length < 1) return res.json([]);
+    if (!query) return res.json([]);
 
     const regex = new RegExp("^" + query, "i");
 
@@ -184,7 +178,7 @@ const autocompleteStores = async (req, res) => {
       ],
     }).limit(5);
 
-    const suggestions = stores.map((store) => ({
+    const suggestions = stores.map(store => ({
       name: store.name,
       tags: store.tags,
     }));
@@ -192,17 +186,15 @@ const autocompleteStores = async (req, res) => {
     res.json(suggestions);
   } catch (err) {
     console.error("Autocomplete Error:", err);
-    res.status(500).json({ error: "Server error during autocomplete." });
+    res.status(500).json({ error: "Error during autocomplete." });
   }
 };
 
-// ✅ Get Store by Exact Name
+// Get by exact name
 const getStoreByName = async (req, res) => {
   try {
     const stores = await Store.find({ name: req.params.name });
-    if (stores.length === 0) {
-      return res.status(404).json({ message: 'Store not found' });
-    }
+    if (stores.length === 0) return res.status(404).json({ message: 'Store not found' });
     res.json({ stores });
   } catch (err) {
     console.error(err);
@@ -210,7 +202,7 @@ const getStoreByName = async (req, res) => {
   }
 };
 
-// ✅ Update Store by ID
+// Update store by ID
 const updateStoreById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -223,16 +215,13 @@ const updateStoreById = async (req, res) => {
       };
     }
 
-    if (update.tags && typeof update.tags === 'string') {
-      update.tags = update.tags.split(',').map(tag => tag.trim());
+    if (typeof update.tags === 'string') {
+      update.tags = update.tags.split(',').map(t => t.trim());
     }
 
     const store = await Store.findByIdAndUpdate(id, { $set: update }, { new: true });
 
-    if (!store) {
-      return res.status(404).json({ message: 'Store not found' });
-    }
-
+    if (!store) return res.status(404).json({ message: 'Store not found' });
     res.json({ message: 'Store updated', store });
   } catch (error) {
     console.error("Update Store Error:", error);
@@ -240,7 +229,7 @@ const updateStoreById = async (req, res) => {
   }
 };
 
-// ✅ Get All Stores (for ManageStores)
+// Get all stores
 const getAllStores = async (req, res) => {
   try {
     const stores = await Store.find();
@@ -251,16 +240,12 @@ const getAllStores = async (req, res) => {
   }
 };
 
-// ✅ Delete Store by ID
+// Delete store by ID
 const deleteStoreById = async (req, res) => {
   try {
     const { id } = req.params;
     const deleted = await Store.findByIdAndDelete(id);
-
-    if (!deleted) {
-      return res.status(404).json({ message: 'Store not found' });
-    }
-
+    if (!deleted) return res.status(404).json({ message: 'Store not found' });
     res.status(200).json({ message: 'Store deleted successfully' });
   } catch (error) {
     console.error("Delete Store Error:", error);

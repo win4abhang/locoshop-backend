@@ -1,24 +1,10 @@
-// models/storeModel.js
-
-const mongoose = require("mongoose");
+const mongoose = require('mongoose');
 
 const storeSchema = new mongoose.Schema({
-  name: {
-    type: String,
-    required: true,
-  },
-  address: {
-    type: String,
-    required: true,
-  },
-  phone: {
-    type: String,
-    required: true,
-  },
-  tags: {
-    type: [String],
-    required: true,
-  },
+  name: { type: String, required: true },
+  address: { type: String, required: true },
+  phone: { type: String, required: true, unique: true },
+  tags: [{ type: String }],
   location: {
     type: {
       type: String,
@@ -30,9 +16,8 @@ const storeSchema = new mongoose.Schema({
       required: true,
     },
   },
-});
+}, { timestamps: true });
 
-// For Geo queries
 storeSchema.index({ location: "2dsphere" });
 
 module.exports = mongoose.model("Store", storeSchema);
