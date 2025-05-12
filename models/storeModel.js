@@ -18,7 +18,7 @@ const storeSchema = new mongoose.Schema({
   },
 }, { timestamps: true });
 
-storeSchema.index({ location: "2dsphere" }); // already likely present
-storeSchema.index({ name: "text", tags: "text" }); // for efficient text search
+storeSchema.index({ location: "2dsphere" });
+storeSchema.index({ name: "text", tags: "text" });
 
-module.exports = mongoose.model("Store", storeSchema);
+module.exports = mongoose.models.Store || mongoose.model("Store", storeSchema);
