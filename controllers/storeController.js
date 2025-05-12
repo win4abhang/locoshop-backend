@@ -64,21 +64,15 @@ const bulkAddStores = async (req, res) => {
 
 // ✅ Admin list stores (paginated)
 const getAllStoresForAdmin = async (req, res) => {
-  try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 50;
-    const skip = (page - 1) * limit;
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 50;
+  const skip = (page - 1) * limit;
 
-    const stores = await Store.find().skip(skip).limit(limit);
-    const totalStores = await Store.countDocuments();
-    const totalPages = Math.ceil(totalStores / limit);
+  const totalCount = await Store.countDocuments({});
+  const stores = await Store.find().skip(skip).limit(limit);
 
-    res.json({ stores, page, totalPages, totalStores });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
+  res.json({ stores, totalCount });
 };
-
 // ✅ User search with location & relevance
 const searchStores = async (req, res) => {
   try {
