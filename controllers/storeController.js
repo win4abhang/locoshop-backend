@@ -1,5 +1,5 @@
 const Store = require('../models/storeModel');
-const { expandQueryTerms, getTagBoost } = require('../utils/searchHelpers');
+const { expandQueryTerms } = require('../utils/searchHelpers');
 
 // Normalize text for consistent matching
 const normalizeText = (text) => {
@@ -9,11 +9,6 @@ const normalizeText = (text) => {
     .replace(/[\u0300-\u036f]/g, '') // Remove accents
     .replace(/[^a-zA-Z0-9\s]/g, '') // Remove punctuation
     .trim();
-};
-
-// Get synonyms for a given term
-const getSynonyms = (word) => {
-  return synonymMap[word] || [];
 };
 
 // Core search controller
@@ -35,12 +30,13 @@ const searchStores = async (req, res) => {
   try {
     let matchStage = {};
     if (searchTerms.length > 0) {
-      const regexList = searchTerms.map(term => new RegExp(term, 'i'));
       matchStage = {
-        $or: [
-          { name: { $in: regexList } },
-          { tags: { $in: regexList } }
-        ]
+        $or: searchTerms.map(term => ({
+          $or: [
+            { name: { $regex: term, $options: 'i' } },
+            { tags: { $regex: term, $options: 'i' } }
+          ]
+        }))
       };
     }
 
@@ -67,6 +63,7 @@ const searchStores = async (req, res) => {
       });
     }
 
+    // Fallback local scoring if no geoNear matches
     const allStores = await Store.find();
     const regexList = searchTerms.map(term => new RegExp(term, 'i'));
     const scoredStores = allStores.map(store => {
