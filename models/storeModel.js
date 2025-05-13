@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const storeSchema = new mongoose.Schema({
-  name: { type: String, required: true },
+  name: { type: String},
   address: { type: String},
   phone: { type: String},
   tags: [{ type: String }],
