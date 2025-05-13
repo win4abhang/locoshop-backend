@@ -85,11 +85,11 @@ const getAllStoresForAdmin = async (req, res) => {
 const searchStores = async (req, res) => {
   try {
     const query = String(req.query.q || "").trim();
+    const lat = parseFloat(req.query.lat);
+    const lng = parseFloat(req.query.lng);
     const page = parseInt(req.query.page) || 1;
     const limit = 3;
     const skip = (page - 1) * limit;
-    const lat = parseFloat(req.query.lat);
-    const lng = parseFloat(req.query.lng);
 
     if (!query || isNaN(lat) || isNaN(lng)) {
       return res.status(400).json({ error: "Search query and location are required." });
@@ -97,63 +97,86 @@ const searchStores = async (req, res) => {
 
     const regex = new RegExp(query, "i");
 
-    const nearbyStores = await Store.find({
-      location: {
-        $near: {
-          $geometry: { type: "Point", coordinates: [lng, lat] },
-        },
+    // Step 1: Nearby + Matching by name/tags
+    const primaryResults = await Store.aggregate([
+      {
+        $geoNear: {
+          near: { type: "Point", coordinates: [lng, lat] },
+          distanceField: "distance",
+          spherical: true,
+          query: {
+            $or: [
+              { name: { $regex: regex } },
+              { tags: { $elemMatch: { $regex: regex } } },
+            ]
+          }
+        }
       },
-    }).limit(50);
+      { $skip: skip },
+      { $limit: limit }
+    ]);
 
-    let filtered = nearbyStores.filter(store =>
-      regex.test(store.name) || store.tags.some(tag => regex.test(tag))
-    );
-
-    if (filtered.length === 0) {
-      const allStores = await Store.find({
-        $or: [
-          { name: { $regex: regex } },
-          { tags: { $elemMatch: { $regex: regex } } },
-        ],
-      }).limit(50);
-
-      const scored = allStores.map(store => {
-        let score = 0;
-        if (store.tags.some(tag => regex.test(tag))) score += 2;
-        if (regex.test(store.name)) score += 1;
-
-        const [storeLng, storeLat] = store.location.coordinates;
-        const dx = storeLat - lat;
-        const dy = storeLng - lng;
-        const distanceScore = -(dx * dx + dy * dy);
-
-        return { store, score, distanceScore };
+    if (primaryResults.length > 0) {
+      const stores = primaryResults.map(store => ({
+        ...store,
+        latitude: store.location.coordinates[1],
+        longitude: store.location.coordinates[0],
+      }));
+      return res.json({
+        stores,
+        page,
+        totalStores: "Nearby matches only"
       });
-
-      scored.sort((a, b) => {
-        if (b.score !== a.score) return b.score - a.score;
-        return b.distanceScore - a.distanceScore;
-      });
-
-      filtered = scored.map(s => s.store);
     }
 
-    const paginated = filtered.slice(skip, skip + limit).map(store => {
-      const obj = store.toObject();
-      obj.latitude = store.location.coordinates[1];
-      obj.longitude = store.location.coordinates[0];
-      return obj;
+    // Step 2: Fallback – relevance match only, scored
+    const fallbackStores = await Store.find({
+      $or: [
+        { name: { $regex: regex } },
+        { tags: { $elemMatch: { $regex: regex } } }
+      ]
     });
 
-    res.json({
+    // Score + distance calculation
+    const enriched = fallbackStores.map(store => {
+      let score = 0;
+      if (store.name.match(regex)) score += 2;
+      if (store.tags.some(tag => tag.match(regex))) score += 1;
+
+      const [lng2, lat2] = store.location.coordinates;
+      const distanceSq = Math.pow(lat - lat2, 2) + Math.pow(lng - lng2, 2);
+
+      return {
+        store,
+        score,
+        distanceSq
+      };
+    });
+
+    enriched.sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return a.distanceSq - b.distanceSq;
+    });
+
+    const paginated = enriched.slice(skip, skip + limit).map(item => {
+      const s = item.store.toObject();
+      return {
+        ...s,
+        latitude: s.location.coordinates[1],
+        longitude: s.location.coordinates[0],
+        score: item.score
+      };
+    });
+
+    return res.json({
       stores: paginated,
       page,
-      totalPages: Math.ceil(filtered.length / limit),
-      totalStores: filtered.length
+      totalStores: enriched.length
     });
+
   } catch (error) {
     console.error("Search error:", error);
-    res.status(500).json({ error: "Server error during store search." });
+    res.status(500).json({ error: "Server error during search." });
   }
 };
 
