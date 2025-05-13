@@ -17,7 +17,7 @@ const getSynonyms = (word) => {
 };
 
 // Core search controller
-const getStores = async (req, res) => {
+const searchStores = async (req, res) => {
   const { lat, lon, query, page = 1 } = req.query;
   const limit = 3;
   const skip = (page - 1) * limit;
@@ -205,7 +205,7 @@ const deleteAllStores = async (req, res) => {
 };
 
 module.exports = {
-  getStores,
+  searchStores,
   autocompleteStores,
   getStoreSuggestions,
   addStore,
