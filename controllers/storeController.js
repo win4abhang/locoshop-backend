@@ -11,15 +11,26 @@ const normalizeText = (text) => {
     .trim();
 };
 
+// Validate latitude and longitude
+const isValidCoordinates = (lat, lng) => {
+  return !isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
+};
+
 // Core search controller
 const searchStores = async (req, res) => {
-  const { lat, lon, query, page = 1 } = req.query;
+  const { latitude, longitude, query, page = 1 } = req.query;
   const limit = 3;
   const skip = (page - 1) * limit;
 
-  // Ensure lat and lon are provided
-  if (!lat || !lon) {
+  if (!latitude || !longitude) {
     return res.status(400).json({ message: 'Latitude and longitude are required' });
+  }
+
+  const lat = parseFloat(latitude);
+  const lng = parseFloat(longitude);
+
+  if (!isValidCoordinates(lat, lng)) {
+    return res.status(400).json({ message: 'Invalid latitude or longitude' });
   }
 
   let searchTerms = [];
@@ -41,11 +52,10 @@ const searchStores = async (req, res) => {
       };
     }
 
-    // Use $geoNear to find stores by geo-location
     const stores = await Store.aggregate([
       {
         $geoNear: {
-          near: { type: 'Point', coordinates: [parseFloat(lon), parseFloat(lat)] },
+          near: { type: 'Point', coordinates: [lng, lat] },
           distanceField: 'distance',
           spherical: true,
           query: matchStage
@@ -65,7 +75,7 @@ const searchStores = async (req, res) => {
       });
     }
 
-    // Fallback if no stores found through geoNear
+    // Fallback local scoring if no geoNear matches
     const allStores = await Store.find();
     const regexList = searchTerms.map(term => new RegExp(term, 'i'));
     const scoredStores = allStores.map(store => {
@@ -76,8 +86,8 @@ const searchStores = async (req, res) => {
       }
 
       const distance = Math.sqrt(
-        Math.pow(store.location.coordinates[1] - parseFloat(lat), 2) +
-        Math.pow(store.location.coordinates[0] - parseFloat(lon), 2)
+        Math.pow(store.location.coordinates[1] - lat, 2) +
+        Math.pow(store.location.coordinates[0] - lng, 2)
       );
       return { ...store.toObject(), score, distance };
     });
@@ -98,7 +108,6 @@ const searchStores = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
-
 
 // Autocomplete endpoint for search suggestions
 const autocompleteStores = async (req, res) => {
