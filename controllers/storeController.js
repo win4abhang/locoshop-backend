@@ -23,7 +23,9 @@ const searchStores = async (req, res) => {
   const skip = (page - 1) * limit;
 
   if (!latitude || !longitude) {
-    return res.status(400).json({ message: 'Latitude and longitude are required' });
+    return res.status(400).json({ 
+      message: `Latitude and longitude are required. Received latitude: ${latitude}, longitude: ${longitude}` 
+    });
   }
 
   const lat = parseFloat(latitude);
@@ -75,9 +77,10 @@ const searchStores = async (req, res) => {
       });
     }
 
-    // Fallback local scoring if no geoNear matches
+    // Fallback local scoring
     const allStores = await Store.find();
     const regexList = searchTerms.map(term => new RegExp(term, 'i'));
+
     const scoredStores = allStores.map(store => {
       let score = 0;
       for (const regex of regexList) {
@@ -89,6 +92,7 @@ const searchStores = async (req, res) => {
         Math.pow(store.location.coordinates[1] - lat, 2) +
         Math.pow(store.location.coordinates[0] - lng, 2)
       );
+
       return { ...store.toObject(), score, distance };
     });
 
@@ -104,12 +108,12 @@ const searchStores = async (req, res) => {
       hasNextPage: skip + paginated.length < filtered.length
     });
   } catch (error) {
-    console.error('Error fetching stores:', error);
+    console.error('Error in searchStores:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
 
-// Autocomplete endpoint for search suggestions
+// Autocomplete endpoint
 const autocompleteStores = async (req, res) => {
   const { query } = req.query;
   if (!query) return res.status(400).json({ message: 'Query is required' });
@@ -122,18 +126,18 @@ const autocompleteStores = async (req, res) => {
 
     res.json(stores);
   } catch (error) {
-    console.error('Autocomplete error:', error);
+    console.error('Error in autocompleteStores:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
 
-// Returns basic suggestions
+// Get default suggestions
 const getStoreSuggestions = async (req, res) => {
   try {
     const stores = await Store.find().limit(10).select('name tags');
     res.json(stores);
   } catch (error) {
-    console.error('Suggestion error:', error);
+    console.error('Error in getStoreSuggestions:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -150,7 +154,7 @@ const addStore = async (req, res) => {
     await newStore.save();
     res.status(201).json(newStore);
   } catch (error) {
-    console.error('Add store error:', error);
+    console.error('Error in addStore:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -162,7 +166,7 @@ const bulkAddStores = async (req, res) => {
     await Store.insertMany(stores);
     res.status(201).json({ message: 'Stores added successfully' });
   } catch (error) {
-    console.error('Bulk add error:', error);
+    console.error('Error in bulkAddStores:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -173,7 +177,7 @@ const getAllStoresForAdmin = async (req, res) => {
     const stores = await Store.find();
     res.json(stores);
   } catch (error) {
-    console.error('Fetch all error:', error);
+    console.error('Error in getAllStoresForAdmin:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -185,7 +189,7 @@ const updateStoreById = async (req, res) => {
     if (!updated) return res.status(404).json({ message: 'Store not found' });
     res.json(updated);
   } catch (error) {
-    console.error('Update error:', error);
+    console.error('Error in updateStoreById:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -197,18 +201,18 @@ const deleteStoreById = async (req, res) => {
     if (!deleted) return res.status(404).json({ message: 'Store not found' });
     res.json({ message: 'Store deleted successfully' });
   } catch (error) {
-    console.error('Delete error:', error);
+    console.error('Error in deleteStoreById:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
 
-// Delete all stores (admin-only)
+// Delete all stores
 const deleteAllStores = async (req, res) => {
   try {
     await Store.deleteMany();
     res.json({ message: 'All stores deleted successfully' });
   } catch (error) {
-    console.error('Delete all error:', error);
+    console.error('Error in deleteAllStores:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
