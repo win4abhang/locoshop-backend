@@ -17,6 +17,7 @@ const searchStores = async (req, res) => {
   const limit = 3;
   const skip = (page - 1) * limit;
 
+  // Ensure lat and lon are provided
   if (!lat || !lon) {
     return res.status(400).json({ message: 'Latitude and longitude are required' });
   }
@@ -40,6 +41,7 @@ const searchStores = async (req, res) => {
       };
     }
 
+    // Use $geoNear to find stores by geo-location
     const stores = await Store.aggregate([
       {
         $geoNear: {
@@ -63,7 +65,7 @@ const searchStores = async (req, res) => {
       });
     }
 
-    // Fallback local scoring if no geoNear matches
+    // Fallback if no stores found through geoNear
     const allStores = await Store.find();
     const regexList = searchTerms.map(term => new RegExp(term, 'i'));
     const scoredStores = allStores.map(store => {
@@ -96,6 +98,7 @@ const searchStores = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
+
 
 // Autocomplete endpoint for search suggestions
 const autocompleteStores = async (req, res) => {
