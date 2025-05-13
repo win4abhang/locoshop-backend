@@ -17,7 +17,7 @@ const {
 router.get('/admin', getAllStoresForAdmin); // /api/stores/admin?page=1&limit=50
 
 // 🔍 User search
-router.get('/ ', searchStores); // /api/stores/search?q=xyz&lat=..&lng=..&page=1
+router.get('/searchStores ', searchStores); // /api/stores/search?q=xyz&lat=..&lng=..&page=1
 
 // Other utilities
 router.get('/suggestions', getStoreSuggestions);
