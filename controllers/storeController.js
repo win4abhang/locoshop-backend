@@ -97,8 +97,8 @@ const searchStores = async (req, res) => {
 
     const regex = new RegExp(query, "i");
 
-    // Step 1: Nearby + Matching by name/tags
-    const primaryResults = await Store.aggregate([
+    // Step 1: Nearby + Matching by name/tags with facet for total count
+    const geoResults = await Store.aggregate([
       {
         $geoNear: {
           near: { type: "Point", coordinates: [lng, lat] },
@@ -107,29 +107,40 @@ const searchStores = async (req, res) => {
           query: {
             $or: [
               { name: { $regex: regex } },
-              { tags: { $elemMatch: { $regex: regex } } },
+              { tags: { $elemMatch: { $regex: regex } } }
             ]
           }
         }
       },
-      { $skip: skip },
-      { $limit: limit }
+      {
+        $facet: {
+          metadata: [{ $count: "total" }],
+          data: [{ $skip: skip }, { $limit: limit }]
+        }
+      }
     ]);
 
-    if (primaryResults.length > 0) {
-      const stores = primaryResults.map(store => ({
+    const primaryData = geoResults[0];
+    const totalPrimary = primaryData.metadata[0]?.total || 0;
+    const primaryStores = primaryData.data;
+
+    if (primaryStores.length > 0) {
+      const stores = primaryStores.map(store => ({
         ...store,
         latitude: store.location.coordinates[1],
         longitude: store.location.coordinates[0],
       }));
+
       return res.json({
         stores,
         page,
-        totalStores: "Nearby matches only"
+        totalStores: totalPrimary,
+        totalPages: Math.ceil(totalPrimary / limit),
+        hasNextPage: page * limit < totalPrimary
       });
     }
 
-    // Step 2: Fallback – relevance match only, scored
+    // Step 2: Fallback – relevance match only, scored and sorted
     const fallbackStores = await Store.find({
       $or: [
         { name: { $regex: regex } },
@@ -137,7 +148,6 @@ const searchStores = async (req, res) => {
       ]
     });
 
-    // Score + distance calculation
     const enriched = fallbackStores.map(store => {
       let score = 0;
       if (store.name.match(regex)) score += 2;
@@ -158,6 +168,7 @@ const searchStores = async (req, res) => {
       return a.distanceSq - b.distanceSq;
     });
 
+    const totalFallback = enriched.length;
     const paginated = enriched.slice(skip, skip + limit).map(item => {
       const s = item.store.toObject();
       return {
@@ -171,7 +182,9 @@ const searchStores = async (req, res) => {
     return res.json({
       stores: paginated,
       page,
-      totalStores: enriched.length
+      totalStores: totalFallback,
+      totalPages: Math.ceil(totalFallback / limit),
+      hasNextPage: page * limit < totalFallback
     });
 
   } catch (error) {
