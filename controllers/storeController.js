@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Store = require("../models/storeModel");
 
 // Add a single store
@@ -28,9 +29,14 @@ const addStore = async (req, res) => {
 
 // Bulk insert
 const bulkAddStores = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
     const stores = req.body;
     if (!Array.isArray(stores) || stores.length === 0) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(400).json({ message: "Invalid store data array." });
     }
 
@@ -44,24 +50,26 @@ const bulkAddStores = async (req, res) => {
       return {
         name: store.name?.trim() || `Dummy Store ${index + 1}`,
         address: store.address?.trim() || "No address",
-        phone: store.phone?.trim() || `99999${index}`,
+        phone: store.phone?.trim() || ``,
         tags: tagsArray,
         location: { type: "Point", coordinates: [lng, lat] },
       };
-    }).filter(store => !store.error);
+    });
 
-    if (formattedStores.length === 0) {
-      return res.status(400).json({ message: "No valid stores to insert." });
-    }
+    // Insert all stores within the transaction
+    await Store.insertMany(formattedStores, { session });
 
-    await Store.insertMany(formattedStores, { ordered: false });
+    await session.commitTransaction();
+    session.endSession();
+
     res.status(201).json({ message: "Bulk stores added successfully!" });
   } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
     console.error("Bulk Upload Error:", error);
     res.status(500).json({ message: "Bulk insert failed", error: error.message });
   }
 };
-
 // ✅ Admin list stores (paginated)
 const getAllStoresForAdmin = async (req, res) => {
   const page = parseInt(req.query.page) || 1;
@@ -255,5 +263,5 @@ module.exports = {
   updateStoreById,
   deleteStoreById,
   getAllStoresForAdmin,
-  deleteAllStores, // 👈 Add this export
+  deleteAllStores, 
 };
