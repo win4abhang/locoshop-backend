@@ -22,6 +22,11 @@ const searchStores = async (req, res) => {
   const limit = 3;
   const skip = (page - 1) * limit;
 
+  console.error("searchQuery:", query);
+  console.error("page:", page);
+  console.error("latitude:", latitude);
+  console.error("longitude:", longitude);
+
   if (!latitude || !longitude) {
     return res.status(400).json({ 
       message: `Latitude and longitude are required. Received latitude: ${latitude}, longitude: ${longitude}` 
@@ -54,13 +59,14 @@ const searchStores = async (req, res) => {
       };
     }
 
+    // Ensure the matchStage is used correctly in the geo query
     const stores = await Store.aggregate([
       {
         $geoNear: {
           near: { type: 'Point', coordinates: [lng, lat] },
           distanceField: 'distance',
           spherical: true,
-          query: matchStage
+          query: matchStage // Ensure the matchStage is here for text matching
         }
       },
       { $skip: skip },
@@ -77,17 +83,18 @@ const searchStores = async (req, res) => {
       });
     }
 
-    // Fallback local scoring
+    // Fallback search: local search by name and tags without geo
     const allStores = await Store.find();
     const regexList = searchTerms.map(term => new RegExp(term, 'i'));
 
     const scoredStores = allStores.map(store => {
       let score = 0;
       for (const regex of regexList) {
-        if (regex.test(store.name)) score += 2;
-        if (store.tags.some(tag => regex.test(tag))) score += 1;
+        if (regex.test(store.name)) score += 2;  // Higher score for name match
+        if (store.tags.some(tag => regex.test(tag))) score += 1;  // Medium score for tag match
       }
 
+      // Calculate distance manually (non-geo search)
       const distance = Math.sqrt(
         Math.pow(store.location.coordinates[1] - lat, 2) +
         Math.pow(store.location.coordinates[0] - lng, 2)
@@ -119,7 +126,8 @@ const autocompleteStores = async (req, res) => {
   if (!query) return res.status(400).json({ message: 'Query is required' });
 
   try {
-    const regex = new RegExp(query, 'i');
+    const normalizedQuery = normalizeText(query);
+    const regex = new RegExp(normalizedQuery, 'i');
     const stores = await Store.find({
       $or: [{ name: regex }, { tags: regex }]
     }).limit(10).select('name tags');
