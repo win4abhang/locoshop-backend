@@ -1,5 +1,5 @@
 const Store = require('../models/storeModel');
-const synonymMap = require('../utils/synonyms');
+const { expandQueryTerms, getTagBoost } = require('../utils/searchHelpers');
 
 // Normalize text for consistent matching
 const normalizeText = (text) => {
@@ -29,7 +29,7 @@ const getStores = async (req, res) => {
   let searchTerms = [];
   if (query) {
     const normalized = normalizeText(query);
-    searchTerms = [normalized, ...getSynonyms(normalized)];
+    searchTerms = expandQueryTerms(normalized);
   }
 
   try {
@@ -44,7 +44,6 @@ const getStores = async (req, res) => {
       };
     }
 
-    // Try exact match with $geoNear
     const stores = await Store.aggregate([
       {
         $geoNear: {
@@ -68,26 +67,19 @@ const getStores = async (req, res) => {
       });
     }
 
-    // Fallback partial match with normalized scoring
     const allStores = await Store.find();
-    const normalizedTerms = searchTerms.map(normalizeText);
-    const regexList = normalizedTerms.map(term => new RegExp(term, 'i'));
-
+    const regexList = searchTerms.map(term => new RegExp(term, 'i'));
     const scoredStores = allStores.map(store => {
       let score = 0;
-      const storeName = normalizeText(store.name);
-      const storeTags = store.tags.map(normalizeText);
-
       for (const regex of regexList) {
-        if (regex.test(storeName)) score += 2;
-        if (storeTags.some(tag => regex.test(tag))) score += 1;
+        if (regex.test(store.name)) score += 2;
+        if (store.tags.some(tag => regex.test(tag))) score += 1;
       }
 
       const distance = Math.sqrt(
         Math.pow(store.location.coordinates[1] - parseFloat(lat), 2) +
         Math.pow(store.location.coordinates[0] - parseFloat(lon), 2)
       );
-
       return { ...store.toObject(), score, distance };
     });
 
