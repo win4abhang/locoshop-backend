@@ -1,6 +1,6 @@
 const Store = require('../models/storeModel');
 const { expandQueryTerms } = require('../utils/searchHelpers');
-const { getSmartTag } = require('../utils/minilmHelper');
+const { getSmartTag } = require('../utils/gptHelper');
 
 // Normalize text for consistent matching
 const normalizeText = (text) => {
@@ -25,7 +25,7 @@ const searchStores = async (req, res) => {
 
   if (!latitude || !longitude) {
     return res.status(400).json({ 
-      message: `Latitude and longitude are required. Received latitude: ${latitude}, longitude: ${longitude}` 
+      //message: `Latitude and longitude are required. Received latitude: ${latitude}, longitude: ${longitude}` 
     });
   }
 
@@ -39,7 +39,7 @@ const searchStores = async (req, res) => {
   let searchTerms = [];
   if (query) {
     const smartTag = await getSmartTag(query);
-    console.log(`MiniLM smartTag for "${query}":`, smartTag); // ✅ Debug line
+    console.log(`GTP smartTag for "${query}":`, smartTag); // ✅ Debug line
     searchTerms = [smartTag];
   }
 
