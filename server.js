@@ -9,7 +9,7 @@
   // ✅ CORS for both frontend and admin panel
   const corsOptions = {
     origin: [
-      'https://locoshop-frontend.netlify.app',
+      'https://locoappui.netlify.app',
       'https://locoshop-admin.netlify.app'
     ],
     methods: ['GET', 'POST', 'DELETE', 'PUT'],
