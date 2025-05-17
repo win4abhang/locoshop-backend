@@ -43,6 +43,7 @@ const searchStores = async (req, res) => {
     const key = query.trim();
 
     console.log(`Current page: "${page}"`);
+    console.log(`Current words count : "${words.length}"`);
   
     if (page === 1) {
       if (words.length < 3) {
