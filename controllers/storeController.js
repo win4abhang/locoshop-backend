@@ -1,7 +1,8 @@
 const Store = require('../models/storeModel');
 const { expandQueryTerms } = require('../utils/searchHelpers');
 const { getSmartTag } = require('../utils/gptHelper');
-const smartTagCache = {};
+
+let smartTagCache = {};
 
 // Normalize text for consistent matching
 const normalizeText = (text) => {
@@ -39,38 +40,37 @@ const searchStores = async (req, res) => {
 
   if (query) {
     const words = query.trim().split(/\s+/);
-
-    if (page == 1) {
-      // Page 1: Evaluate whether to use smartTag
+    const key = query.trim();
+  
+    if (page === 1) {
       if (words.length < 3) {
-        console.log(`⏳ Waiting for more words. Using raw query: "${query}"`);
-        searchTerms = [query.trim()];
-        smartTagCache[query] = query.trim(); // still cache raw input
+        console.log(`⏳ Waiting for more words. Current input: "${query}"`);
+        searchTerms = [key];
+        delete smartTagCache[key];
       } else {
         const lastChar = query.slice(-1);
         if (lastChar === ' ' || lastChar === '\n') {
-          const smartTag = await getSmartTag(query.trim());
-          console.log(`🤖 GTP smartTag for "${query}":`, smartTag);
+          const smartTag = await getSmartTag(key);
+          console.log(`🤖 SmartTag for "${query}":`, smartTag);
+          smartTagCache[key] = smartTag;
           searchTerms = [smartTag];
-          smartTagCache[query] = smartTag; // cache it
         } else {
-          console.log(`⌛ Last word not complete. Using raw query: "${query}"`);
-          searchTerms = [query.trim()];
-          smartTagCache[query] = query.trim(); // cache partial raw input
+          console.log(`⌛ Waiting for word completion. Current input: "${query}"`);
+          searchTerms = [key];
+          delete smartTagCache[key];
         }
       }
     } else {
-      // For page > 1: Reuse cached smartTag or raw input
-      const cached = smartTagCache[query];
-      if (cached) {
-        console.log(`📦 Using cached smartTag: "${cached}"`);
-        searchTerms = [cached];
+      if (smartTagCache[key]) {
+        console.log(`✅ Reusing SmartTag:`, smartTagCache[key]);
+        searchTerms = [smartTagCache[key]];
       } else {
         console.log(`❓ No cached tag found. Using raw: "${query}"`);
-        searchTerms = [query.trim()];
+        searchTerms = [key];
       }
     }
   }
+  
 
   try {
     let matchStage = {};
@@ -109,23 +109,35 @@ const searchStores = async (req, res) => {
     }
 
     // Fallback: manual match
-    const allStores = await Store.find();
     const regexList = searchTerms.map(term => new RegExp(term, 'i'));
 
-    const scoredStores = allStores.map(store => {
+    // Step 1: Filter only relevant stores using $or with regex (prevents loading all stores)
+    const fallbackStores = await Store.find({
+      $or: searchTerms.map(term => ({
+        $or: [
+          { name: { $regex: term, $options: 'i' } },
+          { tags: { $regex: term, $options: 'i' } }
+        ]
+      }))
+    });
+    
+    // Step 2: Score and calculate distance manually
+    const scoredStores = fallbackStores.map(store => {
       let score = 0;
+    
       for (const regex of regexList) {
         if (regex.test(store.name)) score += 2;
         if (store.tags.some(tag => regex.test(tag))) score += 1;
       }
-
+    
       const distance = Math.sqrt(
         Math.pow(store.location.coordinates[1] - lat, 2) +
         Math.pow(store.location.coordinates[0] - lng, 2)
       );
-
+    
       return { ...store.toObject(), score, distance };
     });
+    
 
     const filtered = scoredStores
       .filter(store => store.score > 0)
