@@ -38,50 +38,7 @@ const searchStores = async (req, res) => {
   }
 
   let searchTerms = [];
-
-  if (query?.trim()) {
-    const key = query.trim();
-  
-    if (page === "2") {
-      // Await smartTag only if not already cached
-      if (!smartTagCache[key]) {
-        if (!smartTagFetchPromises[key]) {
-          smartTagFetchPromises[key] = getSmartTag(key)
-            .then((smartTag) => {
-              if (smartTag) smartTagCache[key] = smartTag;
-              return smartTag;
-            })
-            .finally(() => {
-              delete smartTagFetchPromises[key]; // Clean up
-            });
-        }
-  
-        await smartTagFetchPromises[key]; // Wait for the result
-      }
-  
-      searchTerms = [smartTagCache[key]];
-    } else {
-      searchTerms = [key];
-  
-      // Background fetch with race protection
-      if (!smartTagCache[key] && !smartTagFetchPromises[key]) {
-        smartTagFetchPromises[key] = getSmartTag(key)
-          .then((smartTag) => {
-            if (smartTag) {
-              smartTagCache[key] = smartTag;
-              console.log(`⚡ Background SmartTag fetched for "${key}":`, smartTag);
-            }
-          })
-          .catch((err) => {
-            console.error(`⚠️ SmartTag background fetch failed for "${key}"`, err);
-          })
-          .finally(() => {
-            delete smartTagFetchPromises[key]; // Clean up
-          });
-      }
-    }
-  }
-  
+  searchTerms = [query];  
   try {
     let matchStage = {};
     if (searchTerms.length > 0) {
