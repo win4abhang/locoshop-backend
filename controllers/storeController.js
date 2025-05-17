@@ -2,7 +2,8 @@ const Store = require('../models/storeModel');
 const { expandQueryTerms } = require('../utils/searchHelpers');
 const { getSmartTag } = require('../utils/gptHelper');
 
-let smartTagCache = {};
+const smartTagCache = {};
+const smartTagFetchPromises = {}; // Tracks ongoing fetches
 
 // Normalize text for consistent matching
 const normalizeText = (text) => {
@@ -38,34 +39,49 @@ const searchStores = async (req, res) => {
 
   let searchTerms = [];
 
-  if (query) {
+  if (query?.trim()) {
     const key = query.trim();
-    const words = key.split(/\s+/);
   
     if (page === "2") {
+      // Await smartTag only if not already cached
       if (!smartTagCache[key]) {
-        const smartTag = await getSmartTag(key);
-        smartTagCache[key] = smartTag;
+        if (!smartTagFetchPromises[key]) {
+          smartTagFetchPromises[key] = getSmartTag(key)
+            .then((smartTag) => {
+              if (smartTag) smartTagCache[key] = smartTag;
+              return smartTag;
+            })
+            .finally(() => {
+              delete smartTagFetchPromises[key]; // Clean up
+            });
+        }
+  
+        await smartTagFetchPromises[key]; // Wait for the result
       }
+  
       searchTerms = [smartTagCache[key]];
     } else {
       searchTerms = [key];
   
-      // Background fetch and cache SmartTag if not already done
-      if (!smartTagCache[key]) {
-        getSmartTag(key).then((smartTag) => {
-          smartTagCache[key] = smartTag;
-          console.log(`⚡ Background SmartTag fetched for "${key}":`, smartTag);
-        }).catch((err) => {
-          console.error(`⚠️ SmartTag background fetch failed for "${key}"`, err);
-        });
+      // Background fetch with race protection
+      if (!smartTagCache[key] && !smartTagFetchPromises[key]) {
+        smartTagFetchPromises[key] = getSmartTag(key)
+          .then((smartTag) => {
+            if (smartTag) {
+              smartTagCache[key] = smartTag;
+              console.log(`⚡ Background SmartTag fetched for "${key}":`, smartTag);
+            }
+          })
+          .catch((err) => {
+            console.error(`⚠️ SmartTag background fetch failed for "${key}"`, err);
+          })
+          .finally(() => {
+            delete smartTagFetchPromises[key]; // Clean up
+          });
       }
     }
   }
   
-  
-  
-
   try {
     let matchStage = {};
     if (searchTerms.length > 0) {
