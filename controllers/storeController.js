@@ -1,6 +1,7 @@
 const Store = require('../models/storeModel');
 const { expandQueryTerms } = require('../utils/searchHelpers');
 const { getSmartTag } = require('../utils/gptHelper');
+const smartTagCache = {};
 
 // Normalize text for consistent matching
 const normalizeText = (text) => {
@@ -24,9 +25,7 @@ const searchStores = async (req, res) => {
   const skip = (page - 1) * limit;
 
   if (!latitude || !longitude) {
-    return res.status(400).json({ 
-      //message: `Latitude and longitude are required. Received latitude: ${latitude}, longitude: ${longitude}` 
-    });
+    return res.status(400).json({});
   }
 
   const lat = parseFloat(latitude);
@@ -37,10 +36,40 @@ const searchStores = async (req, res) => {
   }
 
   let searchTerms = [];
+
   if (query) {
-    const smartTag = await getSmartTag(query);
-    console.log(`GTP smartTag for "${query}":`, smartTag); // ✅ Debug line
-    searchTerms = [smartTag];
+    const words = query.trim().split(/\s+/);
+
+    if (page == 1) {
+      // Page 1: Evaluate whether to use smartTag
+      if (words.length < 3) {
+        console.log(`⏳ Waiting for more words. Using raw query: "${query}"`);
+        searchTerms = [query.trim()];
+        smartTagCache[query] = query.trim(); // still cache raw input
+      } else {
+        const lastChar = query.slice(-1);
+        if (lastChar === ' ' || lastChar === '\n') {
+          const smartTag = await getSmartTag(query.trim());
+          console.log(`🤖 GTP smartTag for "${query}":`, smartTag);
+          searchTerms = [smartTag];
+          smartTagCache[query] = smartTag; // cache it
+        } else {
+          console.log(`⌛ Last word not complete. Using raw query: "${query}"`);
+          searchTerms = [query.trim()];
+          smartTagCache[query] = query.trim(); // cache partial raw input
+        }
+      }
+    } else {
+      // For page > 1: Reuse cached smartTag or raw input
+      const cached = smartTagCache[query];
+      if (cached) {
+        console.log(`📦 Using cached smartTag: "${cached}"`);
+        searchTerms = [cached];
+      } else {
+        console.log(`❓ No cached tag found. Using raw: "${query}"`);
+        searchTerms = [query.trim()];
+      }
+    }
   }
 
   try {
@@ -56,14 +85,13 @@ const searchStores = async (req, res) => {
       };
     }
 
-    // Ensure the matchStage is used correctly in the geo query
     const stores = await Store.aggregate([
       {
         $geoNear: {
           near: { type: 'Point', coordinates: [lng, lat] },
           distanceField: 'distance',
           spherical: true,
-          query: matchStage // Ensure the matchStage is here for text matching
+          query: matchStage
         }
       },
       { $skip: skip },
@@ -80,18 +108,17 @@ const searchStores = async (req, res) => {
       });
     }
 
-    // Fallback search: local search by name and tags without geo
+    // Fallback: manual match
     const allStores = await Store.find();
     const regexList = searchTerms.map(term => new RegExp(term, 'i'));
 
     const scoredStores = allStores.map(store => {
       let score = 0;
       for (const regex of regexList) {
-        if (regex.test(store.name)) score += 2;  // Higher score for name match
-        if (store.tags.some(tag => regex.test(tag))) score += 1;  // Medium score for tag match
+        if (regex.test(store.name)) score += 2;
+        if (store.tags.some(tag => regex.test(tag))) score += 1;
       }
 
-      // Calculate distance manually (non-geo search)
       const distance = Math.sqrt(
         Math.pow(store.location.coordinates[1] - lat, 2) +
         Math.pow(store.location.coordinates[0] - lng, 2)
@@ -105,6 +132,7 @@ const searchStores = async (req, res) => {
       .sort((a, b) => b.score - a.score || a.distance - b.distance);
 
     const paginated = filtered.slice(skip, skip + limit);
+
     res.json({
       stores: paginated,
       currentPage: parseInt(page),
