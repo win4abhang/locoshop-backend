@@ -42,7 +42,7 @@ const searchStores = async (req, res) => {
     const key = query.trim();
     const words = key.split(/\s+/);
   
-    if (page === "1") {
+    if (page === "2") {
       if (!smartTagCache[key]) {
         const smartTag = await getSmartTag(key);
         smartTagCache[key] = smartTag;
