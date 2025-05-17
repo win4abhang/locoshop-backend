@@ -39,37 +39,29 @@ const searchStores = async (req, res) => {
   let searchTerms = [];
 
   if (query) {
-    const words = query.trim().split(/\s+/);
     const key = query.trim();
-
+    const words = key.split(/\s+/);
+  
     console.log(`Current page: "${page}"`);
     console.log(`Current words count : "${words.length}"`);
   
     if (page === "1") {
-    
       if (words.length < 3) {
         console.log(`⏳ Waiting for more words. Current input: "${query}"`);
-        console.log(`Current page: "${page}"`);
         searchTerms = [key];
-        delete smartTagCache[key]; // Not needed but safe to clear if incomplete
+        delete smartTagCache[key];
       } else {
-        const lastChar = query.slice(-1);
-        if (lastChar === ' ' || lastChar === '\n') {
-          if (!smartTagCache[key]) {
-            console.log(`🤖 Fetching SmartTag for "${query}"`);
-            const smartTag = await getSmartTag(key);
-            smartTagCache[key] = smartTag;
-          } else {
-            console.log(`♻️ Using Cached SmartTag for "${query}"`);
-          }
-          searchTerms = [smartTagCache[key]];
+        if (!smartTagCache[key]) {
+          console.log(`🤖 Fetching SmartTag for "${query}"`);
+          const smartTag = await getSmartTag(key);
+          smartTagCache[key] = smartTag;
         } else {
-          console.log(`⌛ Waiting for word completion. Current input: "${query}"`);
-          searchTerms = [key];
+          console.log(`♻️ Using Cached SmartTag for "${query}"`);
         }
+        searchTerms = [smartTagCache[key]];
       }
     } else {
-      // Use cached smartTag for page > 1
+      // page > 1
       if (smartTagCache[key]) {
         console.log(`📄 Using Cached SmartTag on page ${page}:`, smartTagCache[key]);
         searchTerms = [smartTagCache[key]];
