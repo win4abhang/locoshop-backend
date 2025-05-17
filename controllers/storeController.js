@@ -21,7 +21,7 @@ const isValidCoordinates = (lat, lng) => {
 
 // Core search controller
 const searchStores = async (req, res) => {
-  const { latitude, longitude, query, page = 1 } = req.query;
+  const { latitude, longitude, query, page} = req.query;
   const limit = 3;
   const skip = (page - 1) * limit;
 
@@ -41,15 +41,19 @@ const searchStores = async (req, res) => {
   if (query) {
     const words = query.trim().split(/\s+/);
     const key = query.trim();
+
+    console.log(`Current page: "${page}"`);
   
     if (page === 1) {
       if (words.length < 3) {
         console.log(`⏳ Waiting for more words. Current input: "${query}"`);
+        console.log(`Current page: "${page}"`);
         searchTerms = [key];
         delete smartTagCache[key];
       } else {
         const lastChar = query.slice(-1);
         if (lastChar === ' ' || lastChar === '\n') {
+          console.log(`🤖 SmartTag for start`);
           const smartTag = await getSmartTag(key);
           console.log(`🤖 SmartTag for "${query}":`, smartTag);
           smartTagCache[key] = smartTag;
