@@ -45,7 +45,7 @@ const searchStores = async (req, res) => {
     console.log(`Current page: "${page}"`);
     console.log(`Current words count : "${words.length}"`);
   
-    if (page === 1) {   
+    if (page === 1) {
     
       if (words.length < 3) {
         console.log(`⏳ Waiting for more words. Current input: "${query}"`);
