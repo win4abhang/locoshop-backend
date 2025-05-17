@@ -42,35 +42,28 @@ const searchStores = async (req, res) => {
     const key = query.trim();
     const words = key.split(/\s+/);
   
-    console.log(`Current page: "${page}"`);
-    console.log(`Current words count : "${words.length}"`);
-  
     if (page === "1") {
-      if (words.length < 3) {
-        console.log(`⏳ Waiting for more words. Current input: "${query}"`);
-        searchTerms = [key];
-        delete smartTagCache[key];
-      } else {
-        if (!smartTagCache[key]) {
-          console.log(`🤖 Fetching SmartTag for "${query}"`);
-          const smartTag = await getSmartTag(key);
-          smartTagCache[key] = smartTag;
-        } else {
-          console.log(`♻️ Using Cached SmartTag for "${query}"`);
-        }
-        searchTerms = [smartTagCache[key]];
+      if (!smartTagCache[key]) {
+        const smartTag = await getSmartTag(key);
+        smartTagCache[key] = smartTag;
       }
+      searchTerms = [smartTagCache[key]];
     } else {
-      // page > 1
-      if (smartTagCache[key]) {
-        console.log(`📄 Using Cached SmartTag on page ${page}:`, smartTagCache[key]);
-        searchTerms = [smartTagCache[key]];
-      } else {
-        console.log(`❓ No cached tag found. Using raw: "${query}"`);
-        searchTerms = [key];
+      searchTerms = [key];
+  
+      // Background fetch and cache SmartTag if not already done
+      if (!smartTagCache[key]) {
+        getSmartTag(key).then((smartTag) => {
+          smartTagCache[key] = smartTag;
+          console.log(`⚡ Background SmartTag fetched for "${key}":`, smartTag);
+        }).catch((err) => {
+          console.error(`⚠️ SmartTag background fetch failed for "${key}"`, err);
+        });
       }
     }
   }
+  
+  
   
 
   try {
