@@ -6,7 +6,7 @@ const {
   searchStores,
   getStoreSuggestions,
   autocompleteStores,
-  //getStoreByName,
+  getStoresByName,
   updateStoreById,
   deleteStoreById,
   getAllStoresForAdmin,
@@ -22,7 +22,7 @@ router.get("/searchStores", searchStores);
 // Other utilities
 router.get('/suggestions', getStoreSuggestions);
 router.get('/autocomplete', autocompleteStores);
-//router.get('/by-name/:name', getStoreByName);
+router.get('/by-name/:name', getStoresByName);
 router.put('/update-by-id/:id', updateStoreById);
 router.post('/add', addStore);
 router.post('/bulk', bulkAddStores);

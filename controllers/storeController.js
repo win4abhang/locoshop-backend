@@ -270,6 +270,26 @@ const updateStoreById = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
+// Get store by name
+const getStoresByName = async (req, res) => {
+  const { name } = req.params;
+
+  if (!name) {
+    return res.status(400).json({ message: 'Name parameter is required' });
+  }
+
+  try {
+    // Use case-insensitive regex to match name partially
+    const stores = await Store.find({
+      name: { $regex: name, $options: 'i' },
+    });
+
+    res.json({ stores });
+  } catch (error) {
+    console.error('Error in getStoresByName:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
 
 // Delete store by ID
 const deleteStoreById = async (req, res) => {
@@ -303,5 +323,6 @@ module.exports = {
   getAllStoresForAdmin,
   updateStoreById,
   deleteStoreById,
-  deleteAllStores
+  deleteAllStores,
+  getStoresByName
 };
