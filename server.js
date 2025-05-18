@@ -38,9 +38,7 @@ app.use("/api/stores", storeRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/auth", authRoutes);
 
-app.get('/api/admin/secret', authMiddleware, adminMiddleware, (req, res) => {
-  res.json({ message: 'Welcome Admin!' });
-});
+
 // 404 handler for unknown routes
 app.use((req, res) => {
   res.status(404).json({ error: "Not found" });
