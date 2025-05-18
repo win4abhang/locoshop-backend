@@ -11,8 +11,8 @@ const {
   updateUserById,
 } = require('../controllers/userController');
 
-const requireAuth = require('../middleware/authMiddleware');
-const adminMiddleware = require('../middleware/adminMiddleware');
+const requireAuth = require('../middlewares/authMiddleware');
+const adminMiddleware = require('../middlewares/adminMiddleware');
 
 const SECRET = process.env.JWT_SECRET || 'yourSecretKey';
 
