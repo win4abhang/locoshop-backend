@@ -5,6 +5,7 @@ const {
     login,
 } = require('../controllers/authController');
 
-router.get('login', login);
+// Fix: added leading slash to 'login'
+router.post('/login', login);
 
 module.exports = router;
