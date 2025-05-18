@@ -20,7 +20,7 @@ exports.login = async (req, res) => {
     });
     console.log('token:', token);
 
-    res.json({ token, userType: user.userType , username: user._id });
+    res.json({ token, userType: user.userType });
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ error: 'Server error' });
