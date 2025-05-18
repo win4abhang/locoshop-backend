@@ -1,6 +1,7 @@
 const Store = require('../models/storeModel');
 const { expandQueryTerms } = require('../utils/searchHelpers');
 const { getSmartTag } = require('../utils/gptHelper');
+const mongoose = require('mongoose'); // Required for ObjectId validation
 
 const smartTagCache = {};
 const smartTagFetchPromises = {}; // Tracks ongoing fetches
