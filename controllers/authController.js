@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-token';
 
 exports.login = async (req, res) => {
+  console.log('Request body:', req.body);
   const { username, password } = req.body;
 
   try {

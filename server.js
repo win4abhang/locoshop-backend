@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const dotenv = require("dotenv");
 const cors = require("cors");
 
+
 dotenv.config();
 const app = express();
 
@@ -19,6 +20,7 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json());
 
 // ✅ Health check route
 app.get("/", (req, res) => {
