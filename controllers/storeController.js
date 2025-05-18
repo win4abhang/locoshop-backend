@@ -154,19 +154,51 @@ const getStoreSuggestions = async (req, res) => {
   }
 };
 
+
+
+// Admin UI
+
+
 // Add a single store
 const addStore = async (req, res) => {
-  const { name, phone, tags, location } = req.body;
-  if (!name || !phone || !tags || !location) {
+  const { name, address, phone, tags, location } = req.body;
+
+  // Basic presence check
+  if (!name || !address || !phone || !tags || !location) {
     return res.status(400).json({ message: 'Missing required fields' });
   }
 
+  // Location structure validation
+  if (
+    typeof location !== 'object' ||
+    location.type !== 'Point' ||
+    !Array.isArray(location.coordinates) ||
+    location.coordinates.length !== 2 ||
+    isNaN(location.coordinates[0]) ||
+    isNaN(location.coordinates[1])
+  ) {
+    return res.status(400).json({ message: 'Invalid location format' });
+  }
+
   try {
-    const newStore = new Store({ name, phone, tags, location });
-    await newStore.save();
-    res.status(201).json(newStore);
+    const newStore = new Store({
+      name,
+      address,
+      phone,
+      tags,
+      location
+    });
+
+    const savedStore = await newStore.save();
+    res.status(201).json(savedStore);
   } catch (error) {
-    console.error('Error in addStore:', error);
+    console.error('Error saving store:', error);
+
+    // Handle validation error specifically
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({ message: 'Validation error', details: error.errors });
+    }
+
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -194,14 +226,47 @@ const getAllStoresForAdmin = async (req, res) => {
   }
 };
 
-// Update store by ID
 const updateStoreById = async (req, res) => {
+  const { id } = req.params;
+
+  // 1. Validate MongoDB ObjectId
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json({ message: 'Invalid store ID' });
+  }
+
+  // 2. Optional: Validate `location` structure if present in update
+  if (req.body.location) {
+    const loc = req.body.location;
+    if (
+      typeof loc !== 'object' ||
+      loc.type !== 'Point' ||
+      !Array.isArray(loc.coordinates) ||
+      loc.coordinates.length !== 2 ||
+      isNaN(loc.coordinates[0]) ||
+      isNaN(loc.coordinates[1])
+    ) {
+      return res.status(400).json({ message: 'Invalid location format' });
+    }
+  }
+
   try {
-    const updated = await Store.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    if (!updated) return res.status(404).json({ message: 'Store not found' });
+    const updated = await Store.findByIdAndUpdate(id, req.body, {
+      new: true,
+      runValidators: true, // enforce schema validation
+    });
+
+    if (!updated) {
+      return res.status(404).json({ message: 'Store not found' });
+    }
+
     res.json(updated);
   } catch (error) {
     console.error('Error in updateStoreById:', error);
+
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({ message: 'Validation error', details: error.errors });
+    }
+
     res.status(500).json({ message: 'Server error' });
   }
 };
