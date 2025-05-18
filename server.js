@@ -31,16 +31,12 @@ app.get("/", (req, res) => {
 const storeRoutes = require("./routes/storeRoutes");
 const userRoutes = require("./routes/userRoutes");
 const authRoutes = require("./routes/authRoutes");
-const authMiddleware = require('./middlewares/authMiddleware');
-const adminMiddleware = require('./middlewares/adminMiddleware');
 
 app.use("/api/stores", storeRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/auth", authRoutes);
 
-app.get('/api/admin/secret', authMiddleware, adminMiddleware, (req, res) => {
-  res.json({ message: 'Welcome Admin!' });
-});
+
 // 404 handler for unknown routes
 app.use((req, res) => {
   res.status(404).json({ error: "Not found" });
