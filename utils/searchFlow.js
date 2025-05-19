@@ -1,5 +1,5 @@
 const SmartTag = require('../models/SmartTag');
-const Store = require('../models/Store');
+const Store = require('../models/storeModel'); // ✅ Use only once
 const { getSmartTag } = require('./gptHelper');
 
 // Search stores using a query and location
