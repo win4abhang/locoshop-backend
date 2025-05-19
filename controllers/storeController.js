@@ -2,7 +2,10 @@ const Store = require('../models/storeModel');
 const { expandQueryTerms } = require('../utils/searchHelpers');
 const { getSmartTag } = require('../utils/gptHelper');
 const mongoose = require('mongoose'); // Required for ObjectId validation
-const usedSmartTags = {}; // cache smart fallback status
+const Store = require('../models/Store'); // Not Sure for this
+const SmartTag = require('../models/SmartTag'); // ✅ new
+
+let usedSmartTags = {}; // format: { originalQuery: transformedQuery }
 
 const smartTagCache = {};
 const smartTagFetchPromises = {}; // Tracks ongoing fetches
@@ -28,40 +31,30 @@ const searchStores = async (req, res) => {
   const limit = 3;
   const skip = (page - 1) * limit;
 
-  if (!latitude || !longitude) {
-    return res.status(400).json({});
+  if (!latitude || !longitude || !query) {
+    return res.status(400).json({ message: 'Missing coordinates or query' });
   }
 
   const lat = parseFloat(latitude);
   const lng = parseFloat(longitude);
-
   if (!isValidCoordinates(lat, lng)) {
     return res.status(400).json({ message: 'Invalid latitude or longitude' });
   }
 
-  let searchKey = query?.trim()?.toLowerCase() || '';
-  let searchTerms = [searchKey];
-  let triedSmartTag = false;
-
-  // If page = 1 and this query hasn't been processed with smart tag
-  if (page === '1' && !usedSmartTags[searchKey]) {
-    triedSmartTag = true;
-  }
-
   try {
-    let matchStage = {};
-    if (searchTerms.length > 0) {
-      matchStage = {
-        $or: searchTerms.map(term => ({
-          $or: [
-            { name: { $regex: term, $options: 'i' } },
-            { tags: { $regex: term, $options: 'i' } }
-          ]
-        }))
-      };
-    }
+    // ✅ Step 1: Check if smartQuery already exists for this query
+    const existingSmartTag = await SmartTag.findOne({ originalQuery: query });
+    const effectiveQuery = existingSmartTag ? existingSmartTag.smartQuery : query;
 
-    let stores = await Store.aggregate([
+    let matchStage = {
+      $or: [
+        { name: { $regex: effectiveQuery, $options: 'i' } },
+        { tags: { $regex: effectiveQuery, $options: 'i' } }
+      ]
+    };
+
+    // ✅ Step 2: Try geoNear search
+    const stores = await Store.aggregate([
       {
         $geoNear: {
           near: { type: 'Point', coordinates: [lng, lat] },
@@ -74,35 +67,6 @@ const searchStores = async (req, res) => {
       { $limit: limit }
     ]);
 
-    // If no stores found and smart tag fallback allowed
-    if (stores.length === 0 && triedSmartTag) {
-      const smartTag = await getSmartTag(searchKey);
-      if (smartTag && smartTag !== searchKey) {
-        searchTerms = [smartTag];
-        usedSmartTags[searchKey] = true;
-
-        matchStage = {
-          $or: [
-            { name: { $regex: smartTag, $options: 'i' } },
-            { tags: { $regex: smartTag, $options: 'i' } }
-          ]
-        };
-
-        stores = await Store.aggregate([
-          {
-            $geoNear: {
-              near: { type: 'Point', coordinates: [lng, lat] },
-              distanceField: 'distance',
-              spherical: true,
-              query: matchStage
-            }
-          },
-          { $skip: skip },
-          { $limit: limit }
-        ]);
-      }
-    }
-
     if (stores.length > 0) {
       const totalCount = await Store.countDocuments(matchStage);
       return res.json({
@@ -113,19 +77,33 @@ const searchStores = async (req, res) => {
       });
     }
 
-    // Fallback: Manual regex + distance scoring
-    const regexList = searchTerms.map(term => new RegExp(term, 'i'));
+    // ✅ Step 3: If no store found and no smart tag used yet → call GPT
+    if (!existingSmartTag) {
+      const smartTag = await getSmartTag(query);
+
+      if (smartTag && smartTag !== query) {
+        // Save to DB
+        await SmartTag.create({ originalQuery: query, smartQuery: smartTag });
+
+        // 🔁 Retry with smart tag (recursive call)
+        req.query.query = smartTag;
+        return searchStores(req, res);
+      }
+    }
+
+    // ✅ Step 4: Manual fallback scoring if GPT also failed
+    const regexList = [new RegExp(effectiveQuery, 'i')];
+
     const fallbackStores = await Store.find({
-      $or: searchTerms.map(term => ({
-        $or: [
-          { name: { $regex: term, $options: 'i' } },
-          { tags: { $regex: term, $options: 'i' } }
-        ]
-      }))
+      $or: [
+        { name: { $regex: effectiveQuery, $options: 'i' } },
+        { tags: { $regex: effectiveQuery, $options: 'i' } }
+      ]
     });
 
     const scoredStores = fallbackStores.map(store => {
       let score = 0;
+
       for (const regex of regexList) {
         if (regex.test(store.name)) score += 2;
         if (store.tags.some(tag => regex.test(tag))) score += 1;
@@ -156,6 +134,7 @@ const searchStores = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
+
 
 // Autocomplete endpoint
 const autocompleteStores = async (req, res) => {
