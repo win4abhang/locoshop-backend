@@ -1,26 +1,28 @@
 // utils/searchHelpers.js
 
-const synonymMap = {
-  "puncture": ["tyre repair", "bike repair", "wheel fix"],
-  "bike": ["motorcycle", "two wheeler"],
-  "cleaning": ["safai", "dusting", "maid"],
-  "cooler": ["fan", "cooling", "ac"],
-  "battery": ["power", "cell", "spray battery"],
-  "repair": ["fix", "service", "maintenance"]
+function normalizeQuery(query) {
+  return query.trim().toLowerCase();
+}
+
+// Normalize text for consistent matching
+const normalizeText = (text) => {
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // Remove accents
+    .replace(/[^a-zA-Z0-9\s]/g, '') // Remove punctuation
+    .trim();
 };
 
-const expandQueryTerms = (query) => {
-  const terms = query.split(/\s+/).map(t => t.trim().toLowerCase());
-  const expanded = new Set();
 
-  for (let term of terms) {
-    expanded.add(term);
-    if (synonymMap[term]) {
-      synonymMap[term].forEach(syn => expanded.add(syn));
-    }
-  }
-
-  return Array.from(expanded);
+// Validate latitude and longitude
+const isValidCoordinates = (lat, lng) => {
+  return !isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
 };
 
-module.exports = { expandQueryTerms };
+
+module.exports = { 
+  normalizeQuery,
+  isValidCoordinates,
+  normalizeText
+ };
