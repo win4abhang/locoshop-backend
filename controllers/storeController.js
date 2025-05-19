@@ -157,6 +157,25 @@ const searchStores = async (req, res) => {
   }
 };
 
+// Autocomplete endpoint
+const autocompleteStores = async (req, res) => {
+  const { query } = req.query;
+  if (!query) return res.status(400).json({ message: 'Query is required' });
+
+  try {
+    const normalizedQuery = normalizeText(query);
+    const regex = new RegExp(normalizedQuery, 'i');
+    const stores = await Store.find({
+      $or: [{ name: regex }, { tags: regex }]
+    }).limit(10).select('name tags');
+
+    res.json(stores);
+  } catch (error) {
+    console.error('Error in autocompleteStores:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
 // Get default suggestions
 const getStoreSuggestions = async (req, res) => {
   try {
