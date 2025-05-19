@@ -37,7 +37,7 @@ async function saveSmartTag(originalQuery, smartQuery) {
 async function findSmartTag(query) {
   try {
     const normalized = normalizeQuery(query);
-    return await SmartTag.findOne({ normalizedQuery: normalized });
+    return await SmartTag.findOne({ originalQuery: normalized });
   } catch (error) {
     console.error('Error finding SmartTag:', error);
     return null;
