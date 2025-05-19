@@ -1,9 +1,8 @@
-const Store = require('../models/storeModel');
+const Store = require('../models/storeModel'); // ✅ Use only once
 const { expandQueryTerms } = require('../utils/searchHelpers');
 const { getSmartTag } = require('../utils/gptHelper');
-const mongoose = require('mongoose'); // Required for ObjectId validation
-const Store = require('../models/Store'); // Not Sure for this
-const SmartTag = require('../models/SmartTag'); // ✅ new
+const mongoose = require('mongoose');
+const SmartTag = require('../models/SmartTag'); // ✅ new model
 
 let usedSmartTags = {}; // format: { originalQuery: transformedQuery }
 
