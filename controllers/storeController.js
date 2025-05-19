@@ -34,10 +34,11 @@ const searchStores = async (req, res) => {
   const lat = parseFloat(latitude);
   const lng = parseFloat(longitude);
   if (!isValidCoordinates(lat, lng)) {
-    return res.status(400).json({ message: 'Invalid latitude or longitude' });
+    return res.status(400).json({ message: 'Invalid coordinates' });
   }
 
   try {
+    // Step 1: Use Atlas Search (but no geoNear)
     const results = await Store.aggregate([
       {
         $search: {
@@ -51,35 +52,40 @@ const searchStores = async (req, res) => {
         }
       },
       {
-        $geoNear: {
-          near: { type: 'Point', coordinates: [lng, lat] },
-          distanceField: 'distance',
-          spherical: true
-        }
-      },
-      {
         $project: {
           name: 1,
           tags: 1,
           location: 1,
-          distance: 1,
           score: { $meta: 'searchScore' }
         }
-      },
-      { $sort: { score: -1, distance: 1 } },
-      { $skip: skip },
-      { $limit: limit }
+      }
     ]);
 
-    const totalCount = results.length; // not exact, but okay for small pagination
-    res.json({
-      stores: results,
-      currentPage: parseInt(page),
-      totalPages: Math.ceil(totalCount / limit),
-      hasNextPage: skip + results.length < totalCount
+    // Step 2: Calculate distance manually
+    const withDistance = results.map(store => {
+      const [storeLng, storeLat] = store.location.coordinates;
+      const distance = Math.sqrt(
+        Math.pow(storeLat - lat, 2) + Math.pow(storeLng - lng, 2)
+      );
+      return { ...store, distance };
     });
-  } catch (error) {
-    console.error('Atlas Search Error:', error);
+
+    // Step 3: Sort by score and distance
+    const sorted = withDistance.sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return a.distance - b.distance;
+    });
+
+    // Step 4: Paginate manually
+    const paginated = sorted.slice(skip, skip + limit);
+    res.json({
+      stores: paginated,
+      currentPage: parseInt(page),
+      totalPages: Math.ceil(sorted.length / limit),
+      hasNextPage: skip + paginated.length < sorted.length
+    });
+  } catch (err) {
+    console.error('Atlas Search Error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 };
