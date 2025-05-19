@@ -1,7 +1,7 @@
 const SmartTag = require('../models/SmartTag');
 const Store = require('../models/storeModel'); // ✅ Use only once
 const { getSmartTag } = require('./gptHelper');
-
+const { normalizeQuery } = require('./searchHelpers');
 // Search stores using a query and location
 async function findStoresByQuery(query, lat, lng, skip = 0, limit = 100) {
     const result = await Store.aggregate([
@@ -30,18 +30,19 @@ async function findStoresByQuery(query, lat, lng, skip = 0, limit = 100) {
 async function saveSmartTag(originalQuery, smartQuery) {
   if (originalQuery !== smartQuery) {
     await SmartTag.create({ originalQuery, smartQuery });
-  }
+  } 
 }
 
 // Try searching with smartQuery from DB
 async function findSmartTag(query) {
-    try {
-      return await SmartTag.findOne({ originalQuery: query });
-    } catch (error) {
-      console.error('Error finding SmartTag:', error);
-      return null;
-    }
+  try {
+    const normalized = normalizeQuery(query);
+    return await SmartTag.findOne({ normalizedQuery: normalized });
+  } catch (error) {
+    console.error('Error finding SmartTag:', error);
+    return null;
   }
+}
 
 module.exports = {
   findStoresByQuery,
