@@ -23,69 +23,104 @@ const isValidCoordinates = (lat, lng) => {
 
 // Core search controller
 const searchStores = async (req, res) => {
-  const { latitude, longitude, query, page = 1 } = req.query;
+  const { latitude, longitude, query, page} = req.query;
   const limit = 3;
   const skip = (page - 1) * limit;
 
-  if (!latitude || !longitude || !query) {
-    return res.status(400).json({ message: 'Missing required fields' });
+  if (!latitude || !longitude) {
+    return res.status(400).json({});
   }
 
   const lat = parseFloat(latitude);
   const lng = parseFloat(longitude);
+
   if (!isValidCoordinates(lat, lng)) {
-    return res.status(400).json({ message: 'Invalid coordinates' });
+    return res.status(400).json({ message: 'Invalid latitude or longitude' });
   }
 
+  let searchTerms = [];
+  searchTerms = [query];  
   try {
-    // Step 1: Use Atlas Search (but no geoNear)
-    const results = await Store.aggregate([
+    let matchStage = {};
+    if (searchTerms.length > 0) {
+      matchStage = {
+        $or: searchTerms.map(term => ({
+          $or: [
+            { name: { $regex: term, $options: 'i' } },
+            { tags: { $regex: term, $options: 'i' } }
+          ]
+        }))
+      };
+    }
+
+    const stores = await Store.aggregate([
       {
-        $search: {
-          index: 'default',
-          compound: {
-            should: [
-              { text: { query, path: 'name', score: { boost: { value: 3 } } } },
-              { text: { query, path: 'tags', score: { boost: { value: 2 } } } }
-            ]
-          }
+        $geoNear: {
+          near: { type: 'Point', coordinates: [lng, lat] },
+          distanceField: 'distance',
+          spherical: true,
+          query: matchStage
         }
       },
-      {
-        $project: {
-          name: 1,
-          tags: 1,
-          location: 1,
-          score: { $meta: 'searchScore' }
-        }
-      }
+      { $skip: skip },
+      { $limit: limit }
     ]);
 
-    // Step 2: Calculate distance manually
-    const withDistance = results.map(store => {
-      const [storeLng, storeLat] = store.location.coordinates;
+    if (stores.length > 0) {
+      const totalCount = await Store.countDocuments(matchStage);
+      return res.json({
+        stores,
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(totalCount / limit),
+        hasNextPage: skip + stores.length < totalCount
+      });
+    }
+
+    // Fallback: manual match
+    const regexList = searchTerms.map(term => new RegExp(term, 'i'));
+
+    // Step 1: Filter only relevant stores using $or with regex (prevents loading all stores)
+    const fallbackStores = await Store.find({
+      $or: searchTerms.map(term => ({
+        $or: [
+          { name: { $regex: term, $options: 'i' } },
+          { tags: { $regex: term, $options: 'i' } }
+        ]
+      }))
+    });
+    
+    // Step 2: Score and calculate distance manually
+    const scoredStores = fallbackStores.map(store => {
+      let score = 0;
+    
+      for (const regex of regexList) {
+        if (regex.test(store.name)) score += 2;
+        if (store.tags.some(tag => regex.test(tag))) score += 1;
+      }
+    
       const distance = Math.sqrt(
-        Math.pow(storeLat - lat, 2) + Math.pow(storeLng - lng, 2)
+        Math.pow(store.location.coordinates[1] - lat, 2) +
+        Math.pow(store.location.coordinates[0] - lng, 2)
       );
-      return { ...store, distance };
+    
+      return { ...store.toObject(), score, distance };
     });
+    
 
-    // Step 3: Sort by score and distance
-    const sorted = withDistance.sort((a, b) => {
-      if (b.score !== a.score) return b.score - a.score;
-      return a.distance - b.distance;
-    });
+    const filtered = scoredStores
+      .filter(store => store.score > 0)
+      .sort((a, b) => b.score - a.score || a.distance - b.distance);
 
-    // Step 4: Paginate manually
-    const paginated = sorted.slice(skip, skip + limit);
+    const paginated = filtered.slice(skip, skip + limit);
+
     res.json({
       stores: paginated,
       currentPage: parseInt(page),
-      totalPages: Math.ceil(sorted.length / limit),
-      hasNextPage: skip + paginated.length < sorted.length
+      totalPages: Math.ceil(filtered.length / limit),
+      hasNextPage: skip + paginated.length < filtered.length
     });
-  } catch (err) {
-    console.error('Atlas Search Error:', err);
+  } catch (error) {
+    console.error('Error in searchStores:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
