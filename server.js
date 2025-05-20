@@ -11,6 +11,7 @@ const corsOptions = {
   origin: [
     "https://locoappui.netlify.app",
     "https://locoshop-admin.netlify.app",
+    "https://localz.online",  
   ],
   methods: ["GET", "POST", "DELETE", "PUT"],
   allowedHeaders: ["Content-Type", "Authorization"],
